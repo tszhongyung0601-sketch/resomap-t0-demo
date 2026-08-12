@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-cream: #f6f1e7;
+  --color-cream-raise: #fbf7ee;
+  --color-card: #ffffff;
+  --color-ink: #1b1610;
+  --color-ink-soft: #3a332a;
+  --color-ink-mute: #7a7060;
+  --color-line: #e1d8c4;
+  --color-line-strong: #cfc2a3;
+  --color-orange: #d9622b;
+  --color-orange-deep: #a8451c;
+  --color-orange-tint: #fbe6d8;
+  --color-good: #2f6e4f;
+  --color-good-tint: #e4efe7;
+  --color-bad: #a6392a;
+  --color-bad-tint: #f5e1dc;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+    "Noto Sans TC", "Microsoft JhengHei", "Hiragino Sans", Roboto, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas,
+    "Courier New", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cream);
+  color: var(--color-ink-soft);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Leaflet default marker icon fix for bundlers */
+.leaflet-container {
+  font-family: var(--font-sans);
+}
