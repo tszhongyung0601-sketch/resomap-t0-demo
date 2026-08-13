@@ -15,7 +15,7 @@ export const POI_TW_SOUTH: Poi[] = [
     emoji: "🏯",
     tint: "#F3E3CE",
     about:
-      "四點半以後遊覽車團客散掉，蓬壺書院前面才拍得到沒有人的樣子；票 50 元現場買就好，對面的祀典武廟不用錢。",
+      "四點半以後遊覽車團客散掉，蓬壺書院前面才拍得到沒有人的樣子；票 70 元現場買就好，對面的祀典武廟不用錢。",
     stayMin: 50,
     ticketed: true,
   },
@@ -134,7 +134,7 @@ export const POI_TW_SOUTH: Poi[] = [
     emoji: "🏛️",
     tint: "#E6EAF2",
     about:
-      "常設展是分時段的預約票，線上先訂，現場常常已經額滿；館很大，光是動物廳和樂器廳走完就要兩小時。",
+      "每週三休館，這點先確認；館很大，光是動物廳和樂器廳走完就要兩小時。",
     stayMin: 180,
     indoor: true,
     ticketed: true,

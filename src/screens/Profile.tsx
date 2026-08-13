@@ -38,7 +38,12 @@ export function Profile() {
         {/* No「4 人」here: the two demo trips are solo (travellers: []), so a
             head count taken from the global cast contradicts the trip itself. */}
         <Row icon="🧾" label="記帳 / 分帳" />
-        <Row icon="⬇️" label="離線行程" value="未下載" />
+        {/* No「未下載」: the row has no onClick, so Row already stamps it
+            即將推出 — and "not downloaded" next to "coming soon" reports the
+            state of a feature that does not exist to have a state. It is the
+            same fabrication as the old 收藏 "12", just phrased as a status
+            instead of a count. */}
+        <Row icon="⬇️" label="離線行程" />
         <Row icon="📄" label="下載 PDF" />
         <Row icon="🛂" label="旅行文件" />
         <Row icon="🧳" label="行李清單" />

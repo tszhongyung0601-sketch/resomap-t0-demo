@@ -102,11 +102,16 @@ export function Poi({ id }: { id: string }) {
         <button
           onClick={() => setSaved((v) => !v)}
           aria-label={saved ? "取消收藏" : "收藏"}
+          aria-pressed={saved}
           className={`absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-bg/90 text-[18px] active:bg-bg ${
             saved ? "text-brand" : "text-ink-2"
           }`}
         >
-          {saved ? "♥️" : "♡"}
+          {/* U+2665 without the U+FE0F variation selector. With it the filled
+              heart renders in emoji presentation — a red glyph at its own size
+              that ignores `text-brand` — so the two states came out in
+              different colours and sizes and the toggle read as a glitch. */}
+          {saved ? "♥" : "♡"}
         </button>
       </div>
 
@@ -229,10 +234,15 @@ export function Poi({ id }: { id: string }) {
         </Section>
       )}
 
-      <div className="h-8" />
+      {/* `shrink-0`, or this does nothing at all. Screen is a flex column, and a
+          flex item defaults to shrink:1 with min-height:auto — an empty div's
+          min-content is 0, so on any page long enough to scroll (which is every
+          POI with a story) this collapsed to zero and the last 附近 row ran
+          straight into the bar below. */}
+      <div className="h-8 shrink-0" />
 
       {/* In flow as well as sticky, so the last row is never covered by it. */}
-      <div className="sticky bottom-0 z-20 mt-auto border-t border-line bg-bg/95 px-5 pb-5 pt-3 backdrop-blur">
+      <div className="sticky bottom-0 z-20 mt-auto shrink-0 border-t border-line bg-bg/95 px-5 pb-5 pt-3 backdrop-blur">
         <Button onClick={addToTrip}>加入行程</Button>
       </div>
     </Screen>

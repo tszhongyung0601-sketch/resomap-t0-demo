@@ -129,8 +129,13 @@ export function AdminDemo() {
             </p>
           </Panel>
 
+          {/* Titled as a ranking, not as the whole set: `byDest` is sorted by
+              clicks and cut at five, and the demo has seven cities carrying
+              deals — so「點擊來自哪些目的地」would present a truncated list as if
+              it were complete. 類別 below needs no such hedge: there are exactly
+              six categories and slice(0, 6) can never drop one. */}
           {f.byDest.length > 0 && (
-            <Panel title="點擊來自哪些目的地">
+            <Panel title="點擊最多的目的地">
               {f.byDest.slice(0, 5).map((d) => (
                 <StatRow
                   key={d.destId}
@@ -181,12 +186,17 @@ export function AdminDemo() {
       {f.byPartner.length > 0 && (
         <Panel title="各平台表現">
           <div className="px-5">
-            <div className="flex items-baseline gap-2 pb-2 text-[10.5px] text-ink-3">
+            {/* 11px floor: below that the header stops being readable at arm's
+                length. The numeric columns are w-12 rather than w-11 because
+                「模擬預訂」is four CJK glyphs — 44px at this size, which wraps to
+                two lines inside a 44px box and knocks the header off the
+                baseline it shares with the figures. */}
+            <div className="flex items-baseline gap-2 pb-2 text-[11px] text-ink-3">
               <span className="min-w-0 flex-1">平台</span>
-              <span className="w-11 shrink-0 text-right">點擊</span>
-              <span className="w-11 shrink-0 text-right">前往</span>
-              <span className="w-11 shrink-0 text-right">模擬預訂</span>
-              <span className="w-20 shrink-0 text-right">模擬佣金</span>
+              <span className="w-12 shrink-0 whitespace-nowrap text-right">點擊</span>
+              <span className="w-12 shrink-0 whitespace-nowrap text-right">前往</span>
+              <span className="w-12 shrink-0 whitespace-nowrap text-right">模擬預訂</span>
+              <span className="w-20 shrink-0 whitespace-nowrap text-right">模擬佣金</span>
             </div>
             {f.byPartner.map((p) => (
               <div key={p.partner} className="flex items-baseline gap-2 py-2.5">
@@ -249,9 +259,11 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/* w-12 to match the header above it — the figures and their labels have to
+   share a right edge, or the table reads as four unrelated columns. */
 function Figure({ children }: { children: ReactNode }) {
   return (
-    <span className="num w-11 shrink-0 text-right text-[13.5px] font-semibold text-ink-2">
+    <span className="num w-12 shrink-0 text-right text-[13.5px] font-semibold text-ink-2">
       {children}
     </span>
   );

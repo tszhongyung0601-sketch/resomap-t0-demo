@@ -224,7 +224,10 @@ export function Tabs<T extends string>({
           <button
             key={i.id}
             onClick={() => onChange(i.id)}
-            className={`relative shrink-0 pb-2.5 pt-1 text-[14.5px] transition ${
+            /* The underline has to sit tight under the label, so the tap target
+               is extended past the visual with a pseudo-element rather than by
+               padding it out — same trick as Chip. */
+            className={`relative shrink-0 pb-2.5 pt-1 text-[14.5px] transition after:absolute after:inset-x-0 after:-inset-y-2 after:content-[''] ${
               on ? "font-bold text-ink" : "font-medium text-ink-3"
             }`}
           >

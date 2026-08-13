@@ -33,9 +33,12 @@ export function ArrivalSheet({
 }) {
   const p = poi(poiId);
   const s = story(p?.storyId);
-  useEffect(() => {
-    if (s) track("story_play", { poiId });
-  }, [s, poiId]);
+  /* This sheet does NOT record story_play. It used to, on mount — so showing
+     the prompt counted as a play even when the traveller tapped 稍後, while the
+     POI page's own 30 秒 / 完整故事 buttons went straight to the player and were
+     never counted at all. The funnel that came out could report more finishes
+     than plays. The event belongs at the one point every route converges on:
+     audio actually starting, in StoryPlayer. */
   if (!p || !s) return null;
 
   return (
@@ -92,8 +95,10 @@ export function ArrivalSheet({
  * Two things it does have to be honest about. The length toggle rebuilds the
  * whole player rather than skipping ahead, because the 30 秒 edit is a different
  * recording, not a truncation of the long one. And a language with no recording
- * says so and shows the transcript instead of quietly speaking 中文 under a
- * label that claims otherwise.
+ * says so rather than quietly speaking 中文 under a label that claims otherwise
+ * — while naming the transcript underneath as the 中文 one, because that is the
+ * only text there is and implying it is the 日本語 version is the same lie in a
+ * different place.
  */
 export function StoryPlayer({
   poiId,
@@ -114,12 +119,26 @@ export function StoryPlayer({
   useEffect(() => setLen(length), [length, poiId]);
 
   const [lang, setLang] = useState(() => s?.languages[0] ?? SPOKEN);
+  /* The same reset as `len` above, for the same reason. Somebody who switched to
+     日本語 to read the transcript at one place arrived at the next one still on
+     日本語: no autoplay, and a recording that does exist sitting behind a line
+     saying it does not. `s` and `poiId` change together and story records are
+     stable module objects, so this fires once per place and never fights
+     cycleLang. */
+  useEffect(() => {
+    setLang(s?.languages[0] ?? SPOKEN);
+  }, [poiId, s]);
   const spoken = lang === SPOKEN;
   /* Read inside the player-building effect, which must not re-run on a language
      change — rebuilding there would restart an edit the traveller is midway
      through just because they looked at the language list. */
   const spokenRef = useRef(spoken);
   spokenRef.current = spoken;
+
+  /* One story_play per edit that actually produced audio, whether it started on
+     its own or the traveller pressed ▶. Reset with each rebuilt player, so
+     story_finish can never outrun the play it belongs to. */
+  const countedRef = useRef(false);
 
   const sentences = useMemo(
     () => (s ? splitSentences(len === "short" ? s.short : s.body) : []),
@@ -150,10 +169,13 @@ export function StoryPlayer({
     setPlayer(v);
     setLine(0);
     setElapsed(0);
+    countedRef.current = false;
     // Autoplay: they already picked an edit to get here.
     if (spokenRef.current) {
       v.play();
       setPlaying(true);
+      countedRef.current = true;
+      track("story_play", { poiId });
     } else {
       setPlaying(false);
     }
@@ -217,10 +239,13 @@ export function StoryPlayer({
         style={{ background: p.tint }}
       >
         {p.emoji}
+        {/* 44px, matching the back button on the POI page. At size-10 this was
+            40px — the one way out of a full-screen overlay, and the smallest
+            target in the app. */}
         <button
           onClick={onClose}
           aria-label="關閉"
-          className="absolute left-4 top-4 grid size-10 place-items-center rounded-full bg-bg/90 text-[17px]"
+          className="absolute left-4 top-4 grid size-11 place-items-center rounded-full bg-bg/90 text-[17px] text-ink active:bg-bg"
         >
           ✕
         </button>
@@ -228,13 +253,15 @@ export function StoryPlayer({
 
       <div className="flex flex-1 flex-col overflow-hidden px-6 pb-8 pt-5">
         <div className="flex items-center gap-2">
-          {/* 34px pill, 44px target — the extra height comes from the
-              pseudo-element, same trick as Chip. */}
+          {/* Same trick as Chip: the pill stays small and the pseudo-element
+              carries the target. The old comment claimed "34px pill" and copied
+              Chip's -inset-y-[10px] — but this pill is py-1 at 11.5px, roughly
+              23px, so 10px a side landed at ~43px. -inset-y-[13px] clears 44. */}
           <button
             onClick={cycleLang}
             disabled={langs.length < 2}
             aria-label="切換語言"
-            className="relative inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-2 after:absolute after:inset-x-0 after:-inset-y-[10px] after:content-['']"
+            className="relative inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-2 after:absolute after:inset-x-0 after:-inset-y-[13px] after:content-['']"
           >
             {lang}
             {langs.length > 1 && <span className="text-ink-3">▾</span>}
@@ -246,9 +273,14 @@ export function StoryPlayer({
           )}
         </div>
 
+        {/* Naming the language the transcript is actually in is the whole point.
+            "先看文字稿" next to a 日本語 label promises a Japanese transcript,
+            and what renders underneath is `s.body` — 中文, every time. Offering
+            the wrong-language text is fine; letting the label imply it is the
+            right one is the same lie as speaking 中文 under a 日本語 heading. */}
         {!spoken && (
           <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-            這個語言的錄音還在製作中，先看文字稿。
+            {lang}的錄音還在製作中，以下是{SPOKEN}文字稿。
           </p>
         )}
 
@@ -302,8 +334,16 @@ export function StoryPlayer({
 
         {spoken ? (
           <>
-            <div
-              className="mt-4 cursor-pointer py-2"
+            {/* A real button, not a div with an onClick: this was the only
+                control on the screen with no keyboard path and nothing for a
+                screen reader to announce. The padding is vertical only — the
+                click maths reads this element's own rect, so any horizontal
+                padding would offset every seek by its width. `py-5` around a
+                4px bar buys the 44px target without the bar getting heavier. */}
+            <button
+              type="button"
+              aria-label="跳到故事的某一句"
+              className="mt-2 w-full cursor-pointer px-0 py-5"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 player?.seekSentence(
@@ -317,16 +357,22 @@ export function StoryPlayer({
                   style={{ width: `${pct}%`, transition: "width .12s linear" }}
                 />
               </div>
-            </div>
+            </button>
             <div className="num flex justify-between text-[11.5px] text-ink-3">
               <span>{formatClock(elapsed)}</span>
               <span>{formatClock(total)}</span>
             </div>
 
+            {/* The two seek buttons were bare text — about 30×16px of tappable
+                area each, sitting either side of a 64px play button. They are
+                the controls you reach for one-handed with the phone at your
+                side, so they get a real 44px target; `size-11` holds it without
+                changing how they look. */}
             <div className="mt-4 flex items-center justify-center gap-8">
               <button
                 onClick={() => player?.seekSeconds(-10)}
-                className="text-[13px] font-bold text-ink-2"
+                aria-label="倒轉 10 秒"
+                className="grid size-11 place-items-center rounded-full text-[13px] font-bold text-ink-2 active:bg-surface"
               >
                 ↺ 10
               </button>
@@ -339,15 +385,21 @@ export function StoryPlayer({
                   } else {
                     player.play();
                     setPlaying(true);
+                    if (!countedRef.current) {
+                      countedRef.current = true;
+                      track("story_play", { poiId });
+                    }
                   }
                 }}
+                aria-label={playing ? "暫停" : "播放"}
                 className="grid size-16 place-items-center rounded-full bg-brand text-[22px] text-white active:bg-brand-press"
               >
                 {playing ? "❚❚" : "▶"}
               </button>
               <button
                 onClick={() => player?.seekSeconds(10)}
-                className="text-[13px] font-bold text-ink-2"
+                aria-label="快轉 10 秒"
+                className="grid size-11 place-items-center rounded-full text-[13px] font-bold text-ink-2 active:bg-surface"
               >
                 10 ↻
               </button>
