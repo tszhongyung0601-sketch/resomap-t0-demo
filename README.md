@@ -1,32 +1,181 @@
-# React + TypeScript + Vite
+# ResoMap T0 Demo — 多人決策協調 × 旅途陪伴
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+東京 3 天 2 夜、四位旅伴、四個衝突。純前端、全假資料。
 
-Currently, two official plugins are available:
+**這個 demo 不是要證明「我們也會排行程」。**
+是要證明「我們會幫一群人把行程**決定**下來，而且在旅途變動時**繼續幫忙**」。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 為什麼是這個方向
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+三份素材推出來的結論互相咬合：
 
-## Expanding the Oxlint configuration
+- **競品分析報告**：定位 = AI Travel Companion × Local Story × Local Commerce。
+  市場空白在 Local Story → Local Commerce 的銜接。「規劃只是入口，旅程才是產品。」
+- **市場痛點分析**：現有工具已大量解決 **Information + Scheduling**；
+  沒被解決的是 **Decision + Coordination + Execution**。
+  85%+ 台灣受訪者規劃一週團體旅行超過 10 小時，39% 超過 40 小時。
+- **原文關鍵句**：「AI 若只是再推薦更多景點，可能反而增加決策負擔。」
+  「AI 需要能解釋為什麼這樣排、誰的需求被滿足、哪裡需要妥協。」
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+所以這一版的 AI 排行程是**協調器**，不是排程器。
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+---
+
+## 怎麼跑
+
+```bash
+npm install && npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+投影建議：瀏覽器全螢幕，視窗 1600×1000 以上（低於 1280px 會隱藏左右旁白欄）。
+**記得確認喇叭有聲音** —— 語音導覽會真的出聲。
+
+---
+
+## 簡報操作
+
+| 操作 | 鍵盤 | 說明 |
+|---|---|---|
+| 上／下一頁 | `←` `→` | S0 → S1 → S2 → S3 → S4 → S8 → S9 |
+| 全螢幕地圖 | `M` | |
+| 營運後台 | `D` | |
+| 回行程 | `Esc` | |
+
+簡報列上有四顆情境按鈕（睡過頭／下雨／餐廳客滿／旅伴太累）可隨時觸發旅途重排，
+最右邊 `⟲` 重置所有 demo 數據。**彩排後記得按一次。**
+
+---
+
+## 建議的敘事線（約 7 分鐘）
+
+1. **S0** —「不是一個人排好再問大家意見。」
+2. **S1 偏好卡** — 按「一鍵套用四人設定」，上方衝突計數從 0 跳到 **4**。
+   重點不是欄位多，是**必去標 🔒 之後 AI 永遠不會刪它**。
+3. **S2 協調中** — 措辭是「協調」不是「排程」：先列出四個衝突並指名是誰對誰，
+   再說「計算 127 種組合、排除 119 種（有人的不可妥協項被犧牲）」。
+4. **S3 共識方案（英雄畫面 1）** — 這不是行程，是一份協議。
+   四個人的滿足度**分開算不平均**。按「換一個方案」，四個數字同時重算：
+
+   | 方案 | 共識 | 阿哲 | 小雨 | 阿凱 | 婷婷 |
+   |---|---|---|---|---|---|
+   | D2 分頭行動（預設）| 88% | 92 | 84 | 95 | 79 |
+   | 全員迪士尼半天 | 75% | **62** | 71 | 88 | 79 |
+   | 取消迪士尼 | 69% | **18** | 93 | 99 | 86 |
+   | 改住新宿 | 73% | 92 | 80 | **41** | 79 |
+
+   **這張表就是整個 demo 的高潮** —— 取捨是看得到的移動，不是文字描述。
+5. **S4 行程** — 每張景點卡的色點說明「這站是為誰排的」。
+   切到**第 2 天**：時間軸從中間分岔成兩欄，18:30 會合。沒有現有 App 排得出來。
+   拖動任一站 → 立刻指名「阿凱：當日花費超支 ¥1,860」。
+   **手動編輯與 AI 不是兩套系統。**
+6. **按 `⏰ 睡過頭`（英雄畫面 2）** — 三個方案，每個都寫明**誰受影響**。
+   選一個 → 行程即時重排、共識度從 88% 掉到 85%。
+7. **點任一站的「語音導覽」** — 版型與現有 App 一致，播放時字幕逐句高亮，
+   聽完自動接上對應的變現卡（聽完淺草寺 → 和服體驗）。
+8. **按 `D` 進後台** — 把「行程建立率」拉到 0%，月收入歸零。
+   **收尾台詞**：「現在沒有行程規劃 = 行程建立率 0% = 行銷預算全打水漂。」
+
+---
+
+## 畫面
+
+| 代號 | 內容 |
+|---|---|
+| S0 | 建立行程・邀請旅伴・意圖三選一（去趣式）|
+| S1 | 四張旅伴偏好卡 + 即時衝突偵測 |
+| S2 | AI 協調中（列出衝突與被排除的組合）|
+| S3 | 共識方案：滿足度環 + 三張可切換的折衷卡 |
+| S4 | 行程：Funliday 式 tabs／時間軸／拖拉／FAB，加上旅伴歸屬與分頭行動 |
+| S5 | 全螢幕地圖，路線用旅伴色區分 |
+| S7 | 語音導覽地點頁（保留現有 App 版型）|
+| S8 | 行程工具格 + 記帳分帳 + 離線行程 |
+| S9 | 營運後台：轉換漏斗 + 收入公式六滑桿 + 協調專屬指標 |
+
+## 四位旅伴（取自市場痛點分析的 A/B/C/D）
+
+| | 必去 🔒 | 不想去 | 硬限制 |
+|---|---|---|---|
+| 阿哲 | 東京迪士尼（要完整一天）| — | — |
+| 小雨 | 淺草寺、鎌倉大佛 | 任何樂園 | — |
+| 阿凱 | — | — | 住宿每晚 ≤ NT$2,000 |
+| 婷婷 | — | 早起行程 | 每日步行 ≤ 3km、最早 10:00 出門 |
+
+## 四個衝突
+
+1. 迪士尼（阿哲 🔒）× 不想去樂園（小雨）→ **D2 分頭行動**
+2. 市中心住宿（婷婷）× 每晚 ≤NT$2,000（阿凱）→ **住淺草不住新宿**
+3. 迪士尼要早出門 × 最早 10:00（婷婷）→ **只有 D2 早起，換 D1／D3 都 10:30**
+4. 淺草＋上野＋谷根千 6.8km（小雨）× 每日 ≤3km（婷婷）→ **AI 自動解決**：
+   移除谷根千、上野改搭地鐵，不需要任何人讓步
+
+---
+
+## 設計上的硬規則
+
+這幾條是刻意的，改動前請先想清楚：
+
+- **每個方案都必須列出至少一項代價，並指名是誰付。**
+  一個四張笑臉的畫面會安靜地毀掉這個 demo 的全部論點。
+- **共識度上限鎖在 92%**，永遠有人讓步。宣稱所有人都滿意的產品沒有人會相信。
+- **滿足度取各方案的最小值，不取平均。** 一個沒處理好的衝突就足以毀掉一個人的旅行，
+  平均會把這件事藏起來。
+- **語音導覽的版型不要動。** 它是唯一已經存在且能用的部分，要看起來原封不動。
+- **語音用逐句合成。** 一次送整段是顯而易見但錯誤的做法：Chrome 會截斷長語音，
+  `onboundary` 對中文不可靠，進度條會跟聲音漂移。
+
+---
+
+## 借鑑與不借鑑
+
+**從 Funliday 抄**：總覽／第 N 天 tabs、`＋`／`－` 加減天、交通方式切換、
+時間軸的「停留 N 分 + 車程約 N 分」節奏、`＋` FAB 展開三顆（從地圖搜尋／選區域搜尋／
+從收藏選擇）、地圖頁底部景點卡、行程工具格、離線行程狀態列。
+
+**從去趣抄**：開場意圖三選一、主題 chips 的視覺、底部單一大 CTA。
+
+**刻意不抄**：開場的滿版廣告彈窗（會毀掉「AI 幫你做決定」的敘事）、
+AI 手繪封面、旅遊回憶、行李清單。
+
+**只有 ResoMap 有**：旅伴偏好卡、衝突偵測、共識度與滿足度環、可切換的折衷卡、
+景點卡上的旅伴歸屬色點、分頭行動的分岔時間軸、拖拉後的即時違規提示、
+旅途重排的三方案比較、地點頁語音導覽。
+
+---
+
+## 追蹤事件
+
+寫入 `localStorage.resomap_t0_events`，S9 即時聚合：
+
+`preference_submit`、`conflict_detected`、`consensus_generated`、`tradeoff_swap`、
+`manual_reorder`、`ai_recoordinate`、`adapt_trigger`、`adapt_choose`、
+`ota_impression`、`ota_click`、`voice_open`、`voice_play`、`voice_complete`、
+`voice_cta_click`、`split_group_view`。
+
+**換方案率**證明使用者真的在談判；**重排觸發率**證明 Companion 有需求。
+兩者都是競品報告點名的護城河資產。
+
+---
+
+## 已知範圍界線
+
+- 全部假資料。景點座標為真，價格為市場行情估值，品牌名（KLOOK / KKday / Agoda）為示意。
+- 沒有帳號、沒有付款、不呼叫任何 LLM／OTA／訂房 API。
+- 語音用瀏覽器 TTS 即時合成，不是預錄音檔；裝置沒有繁中語音時自動降級為字幕模式。
+- 地圖圖磚即時取自 OpenStreetMap（© OpenStreetMap contributors），需要網路。
+- 「計算 127 種組合、排除 119 種」是示意數字，不是真的跑了組合搜尋。
+
+---
+
+## 技術
+
+React 19 + Vite + TypeScript + Tailwind 4 + Leaflet + dnd-kit。
+
+```
+src/
+  data/       people / spots / consensus / trip / commerce   ← 所有假資料
+  lib/        coordinator（重算時間、偵測違規、套用重排）
+              speech（逐句 TTS）、track（事件）
+  components/ S0–S9 + Shell（手機框、旁白欄、簡報列）
+```
