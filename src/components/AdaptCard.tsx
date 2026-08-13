@@ -1,14 +1,8 @@
 import { useState } from "react";
-import { previewAdapt } from "../lib/adapt";
+import { dur, previewAdapt } from "../lib/adapt";
+import { km } from "../lib/geo";
+import { track } from "../lib/track";
 import type { Adapt, Trip } from "../types";
-
-/** "90" -> "1 小時 30 分". Used so the delay is never written down twice. */
-export function dur(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (!h) return `${m} 分`;
-  return m ? `${h} 小時 ${m} 分` : `${h} 小時`;
-}
 
 /**
  * The in-trip AI, as an Action Card rather than a chat thread.
@@ -16,8 +10,12 @@ export function dur(min: number) {
  * It moves in two beats on purpose. First it says what it noticed and offers a
  * few directions — it does not rewrite the day behind your back. Only when you
  * ask does it show a concrete diff: what goes, what stays, when you now get
- * back. Every number here is computed from the same function that applies the
- * change, so the card cannot promise a time the timeline then contradicts.
+ * back. Every number here comes from the same function that applies the change,
+ * so the card cannot promise a time the timeline then contradicts.
+ *
+ * This is the 80/20 the product is built on: the AI's whole contribution is two
+ * buttons and a diff. There is no text box, because at 15:40 with rain coming
+ * nobody wants to type.
  */
 export function AdaptCard({
   adapt,
@@ -34,7 +32,7 @@ export function AdaptCard({
   const p = previewAdapt(trip, adapt);
 
   return (
-    <div className="rm-in mb-3 overflow-hidden rounded-2xl border border-brand/25 bg-brand-wash">
+    <div className="rm-in overflow-hidden rounded-2xl border border-brand/25 bg-brand-wash">
       <div className="p-4">
         <div className="flex items-start gap-2.5">
           <span className="text-[18px] leading-none">{adapt.icon}</span>
@@ -45,7 +43,8 @@ export function AdaptCard({
               {adapt.delayMin ? (
                 <>
                   {" "}
-                  比原定晚了 <span className="num font-semibold">{dur(adapt.delayMin)}</span>
+                  比原定晚了{" "}
+                  <span className="num font-semibold">{dur(adapt.delayMin)}</span>
                   ，照這樣走晚餐會延到{" "}
                   <span className="num font-semibold">{p.doNothingEndAt}</span>。
                 </>
@@ -55,7 +54,7 @@ export function AdaptCard({
           <button
             onClick={onDismiss}
             aria-label="關閉"
-            className="-mr-1 -mt-1 grid size-8 place-items-center rounded-full text-[15px] text-ink-3"
+            className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-[15px] text-ink-3"
           >
             ✕
           </button>
@@ -66,7 +65,7 @@ export function AdaptCard({
             <div className="mt-3 space-y-1.5">
               {adapt.choices.map((c) => (
                 <div key={c} className="flex items-center gap-2 text-[13.5px] text-ink-2">
-                  <span className="size-1.5 rounded-full bg-brand" />
+                  <span className="size-1.5 shrink-0 rounded-full bg-brand" />
                   {c}
                 </div>
               ))}
@@ -101,35 +100,55 @@ export function AdaptCard({
 
             <div className="mt-2.5">
               <span className="text-[12.5px] text-ink-3">保留</span>
-              <div className="mt-0.5 text-[14.5px] text-ink">{adapt.plan.keeps.join("、")}</div>
+              <div className="mt-0.5 text-[14.5px] leading-snug text-ink">
+                {adapt.plan.keeps.join("、")}
+              </div>
             </div>
 
-            <div className="mt-3 flex gap-6 border-t border-line pt-3">
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3">
               <div>
-                <div className="text-[12px] text-ink-3">新的抵達時間</div>
+                <div className="text-[12px] text-ink-3">
+                  {adapt.delayMin ? "新的抵達時間" : "晚餐時間"}
+                </div>
                 <div className="num text-[16px] font-bold text-ink">{p.endAt}</div>
               </div>
-              {p.savedMetres > 0 && (
+              {p.savedMin > 0 && (
                 <div>
-                  <div className="text-[12px] text-ink-3">今天少走</div>
+                  <div className="text-[12px] text-ink-3">省下</div>
                   <div className="num text-[16px] font-bold text-ink">
-                    {(p.savedMetres / 1000).toFixed(1)} km
+                    {dur(p.savedMin)}
+                  </div>
+                </div>
+              )}
+              {/* "少走" would be a lie when most of the saving is a bus leg.
+                  Only worth a slot at all when it is a real distance. */}
+              {p.savedMetres > 500 && (
+                <div>
+                  <div className="text-[12px] text-ink-3">少繞</div>
+                  <div className="num text-[16px] font-bold text-ink">
+                    {km(p.savedMetres)}
                   </div>
                 </div>
               )}
             </div>
 
             <button
-              onClick={onApply}
+              onClick={() => {
+                track("adapt_applied");
+                onApply();
+              }}
               className="mt-3.5 h-12 w-full rounded-full bg-brand text-[14.5px] font-bold text-white active:bg-brand-press"
             >
-              套用新行程
+              套用調整
             </button>
             <button
-              onClick={onDismiss}
+              onClick={() => {
+                track("adapt_dismissed");
+                onDismiss();
+              }}
               className="mt-1 h-10 w-full text-[13.5px] font-semibold text-ink-3"
             >
-              不要修改
+              維持原計畫
             </button>
           </div>
         )}

@@ -1,38 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
-import { spot } from "../data/demo";
-import {
-  createPlayer,
-  formatClock,
-  splitSentences,
-  type VoicePlayer,
-} from "../lib/speech";
+import { poi } from "../data";
+import { story } from "../data/stories";
+import { createPlayer, formatClock, splitSentences, type VoicePlayer } from "../lib/speech";
+import { track } from "../lib/track";
 import { Button, Sheet, Thumb } from "./ui";
 
 /**
- * Arrival prompt. This is the only place the voice guide announces itself —
- * it belongs to standing in front of the temple, not to the home screen.
+ * Arrival prompt.
+ *
+ * This is the only place the voice guide announces itself unprompted, and it
+ * only fires once you are standing in front of the thing. A story about 赤崁樓
+ * is worth three minutes when you can see the banyan tree it describes; on the
+ * home screen it is just another card asking for attention.
  */
 export function ArrivalSheet({
-  spotId,
-  open,
+  poiId,
   onPlay,
   onLater,
 }: {
-  spotId: string;
-  open: boolean;
+  poiId: string;
   onPlay: () => void;
   onLater: () => void;
 }) {
-  const s = spot(spotId);
-  if (!s?.story) return null;
+  const p = poi(poiId);
+  const s = story(p?.storyId);
+  useEffect(() => {
+    if (s) track("story_play", { poiId });
+  }, [s, poiId]);
+  if (!p || !s) return null;
+
   return (
-    <Sheet open={open} onClose={onLater}>
-      <div className="px-5 pb-2 pt-3">
+    <Sheet open onClose={onLater}>
+      <div className="px-5 pb-2 pt-2">
         <div className="flex items-center gap-3">
-          <Thumb emoji={s.emoji} tint={s.tint} size={56} />
+          <Thumb emoji={p.emoji} tint={p.tint} size={56} />
           <div>
             <div className="text-[13px] text-ink-3">你到了</div>
-            <div className="text-[19px] font-bold text-ink">{s.name}</div>
+            <div className="text-[19px] font-bold text-ink">{p.name}</div>
           </div>
         </div>
 
@@ -40,7 +44,7 @@ export function ArrivalSheet({
           <span className="text-[20px]">🎧</span>
           <div className="flex-1">
             <div className="text-[14.5px] font-semibold text-ink">聽這裡的故事</div>
-            <div className="num text-[12.5px] text-ink-3">{s.story.minutes} 分鐘</div>
+            <div className="num text-[12.5px] text-ink-3">{s.minutes} 分鐘</div>
           </div>
         </div>
 
@@ -56,25 +60,21 @@ export function ArrivalSheet({
 }
 
 /**
- * The player stays deliberately plain: art, title, one transport control, a
- * progress bar, language, transcript. No queue, no speed control, no social
- * row — this is a three-minute story, not a podcast app.
+ * The player keeps ResoMap's own identity — the illustration, the language, who
+ * recorded it, how many people have heard it, one way to say it was good — and
+ * nothing else. No queue, no speed control, no comment thread. It is a
+ * three-minute story you listen to standing up, not a podcast app.
  */
 export function StoryPlayer({
-  spotId,
+  poiId,
   onClose,
-  onFinish,
 }: {
-  spotId: string;
+  poiId: string;
   onClose: () => void;
-  onFinish?: () => void;
 }) {
-  const s = spot(spotId);
-  const story = s?.story;
-  const sentences = useMemo(
-    () => (story ? splitSentences(story.body) : []),
-    [story],
-  );
+  const p = poi(poiId);
+  const s = story(p?.storyId);
+  const sentences = useMemo(() => (s ? splitSentences(s.body) : []), [s]);
 
   const [player, setPlayer] = useState<VoicePlayer | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -84,40 +84,40 @@ export function StoryPlayer({
 
   useEffect(() => {
     if (!sentences.length) return;
-    const p = createPlayer(
+    const v = createPlayer(
       sentences,
       {
         onSentence: setLine,
         onTick: setElapsed,
         onEnd: () => {
           setPlaying(false);
-          onFinish?.();
+          track("story_finish", { poiId });
         },
       },
       "zh-TW",
     );
-    setPlayer(p);
-    // Autoplay: the traveller already tapped "開始播放" to get here.
-    p.play();
+    setPlayer(v);
+    // Autoplay: they already tapped 開始播放 to get here.
+    v.play();
     setPlaying(true);
     return () => {
-      p.stop();
+      v.stop();
       setPlayer(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sentences]);
 
-  if (!s || !story) return null;
+  if (!p || !s) return null;
   const total = player?.totalSeconds ?? 0;
   const pct = total ? Math.min(100, (elapsed / total) * 100) : 0;
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col bg-bg">
       <div
-        className="relative grid h-[42%] place-items-center text-[72px]"
-        style={{ background: s.tint }}
+        className="relative grid h-[38%] shrink-0 place-items-center text-[72px]"
+        style={{ background: p.tint }}
       >
-        {s.emoji}
+        {p.emoji}
         <button
           onClick={onClose}
           aria-label="關閉"
@@ -127,7 +127,7 @@ export function StoryPlayer({
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col px-6 pb-8 pt-5">
+      <div className="flex flex-1 flex-col overflow-hidden px-6 pb-8 pt-5">
         <div className="flex items-center gap-2">
           <span className="rounded-md bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-2">
             中文
@@ -139,17 +139,12 @@ export function StoryPlayer({
           )}
         </div>
 
-        <h1 className="mt-2.5 text-[19px] font-bold leading-snug text-ink">
-          {story.title}
-        </h1>
+        <h1 className="mt-2.5 text-[19px] font-bold leading-snug text-ink">{s.title}</h1>
 
-        {/* ResoMap's own guide identity — who recorded it, how many people have
-            heard it, and one way to say it was good. Kept to a single line;
-            comments and reporting live behind the app's existing screens. */}
         <div className="mt-2 flex items-center gap-2 text-[12.5px] text-ink-3">
-          <span className="truncate">{story.narrator}</span>
+          <span className="truncate">{s.narrator}</span>
           <span>·</span>
-          <span className="num">{story.plays.toLocaleString()} 次播放</span>
+          <span className="num shrink-0">{s.plays.toLocaleString()} 次播放</span>
           <button
             onClick={() => setLiked((v) => !v)}
             aria-label="喜歡"
@@ -157,7 +152,7 @@ export function StoryPlayer({
               liked ? "bg-brand-wash text-brand" : "bg-surface text-ink-3"
             }`}
           >
-            ♥ {story.likes + (liked ? 1 : 0)}
+            ♥ {(s.likes + (liked ? 1 : 0)).toLocaleString()}
           </button>
         </div>
 

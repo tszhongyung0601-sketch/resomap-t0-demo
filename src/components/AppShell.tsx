@@ -1,19 +1,24 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-export type Tab = "explore" | "spots" | "trip" | "deals" | "more";
+export type Tab = "explore" | "map" | "trips" | "deals" | "profile";
 
 const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: "explore", label: "探索", icon: <Compass /> },
-  { id: "spots", label: "景點", icon: <Pin /> },
-  { id: "trip", label: "旅程", icon: <Route /> },
-  { id: "deals", label: "優惠", icon: <Tag /> },
-  { id: "more", label: "更多", icon: <Dots /> },
+  { id: "map", label: "地圖", icon: <Pin /> },
+  { id: "trips", label: "行程", icon: <Route /> },
+  { id: "deals", label: "優惠", icon: <TagIcon /> },
+  { id: "profile", label: "我的", icon: <Person /> },
 ];
 
 /**
- * Phone-first. On a wide screen the app sits in a plain device viewport rather
- * than stretching into a desktop layout — the product is a phone app, and
- * pretending otherwise is how dashboards creep back in.
+ * Five tabs, and the AI is not one of them.
+ *
+ * Putting an assistant in the tab bar makes it a destination you have to
+ * remember to visit, which is exactly wrong: the whole point is that it turns
+ * up when the trip needs it. So it lives in one floating button whose label
+ * changes with where you are — 問 AI on the home screen, 附近推薦 on the map,
+ * 調整行程 mid-trip — and disappears entirely on screens that already end in a
+ * decision.
  */
 export function AppShell({
   tab,
@@ -25,7 +30,6 @@ export function AppShell({
   tab: Tab;
   onTab: (t: Tab) => void;
   showNav: boolean;
-  /** The floating action changes with context; null hides it entirely. */
   ai: { label: string; onClick: () => void } | null;
   children: ReactNode;
 }) {
@@ -71,9 +75,7 @@ export function AppShell({
               >
                 <span className={on ? "text-brand" : "text-ink-3"}>{t.icon}</span>
                 <span
-                  className={`text-[10.5px] font-semibold ${
-                    on ? "text-brand" : "text-ink-3"
-                  }`}
+                  className={`text-[11px] font-semibold ${on ? "text-brand" : "text-ink-3"}`}
                 >
                   {t.label}
                 </span>
@@ -127,7 +129,7 @@ function Route() {
     </svg>
   );
 }
-function Tag() {
+function TagIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <path d="M4 11V5h6l9.5 9.5a2 2 0 010 2.8l-3.2 3.2a2 2 0 01-2.8 0z" strokeLinejoin="round" />
@@ -135,12 +137,11 @@ function Tag() {
     </svg>
   );
 }
-function Dots() {
+function Person() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <circle cx="12" cy="8.5" r="3.6" />
+      <path d="M5 20c.9-3.6 3.6-5.5 7-5.5s6.1 1.9 7 5.5" strokeLinecap="round" />
     </svg>
   );
 }

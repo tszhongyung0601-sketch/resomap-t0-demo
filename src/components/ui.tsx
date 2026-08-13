@@ -1,22 +1,12 @@
 import type { ReactNode } from "react";
 
 /* Small, boring primitives. Every one of them defaults to "no border, no
-   shadow" — hierarchy comes from background and spacing, so a screen can add
-   ten of these without turning into a dashboard. */
+   shadow" — hierarchy comes from background, spacing and type size, so a screen
+   can use ten of them without turning into a dashboard. */
 
-export function Screen({
-  children,
-  pad = true,
-}: {
-  children: ReactNode;
-  pad?: boolean;
-}) {
+export function Screen({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={`flex h-full flex-col overflow-y-auto overscroll-contain bg-bg no-scrollbar ${
-        pad ? "" : ""
-      }`}
-    >
+    <div className="flex h-full flex-col overflow-y-auto overscroll-contain bg-bg no-scrollbar">
       {children}
     </div>
   );
@@ -28,6 +18,7 @@ export function TopBar({
   right,
   large,
   below,
+  transparent,
 }: {
   title?: string;
   onBack?: () => void;
@@ -37,25 +28,34 @@ export function TopBar({
       Kept here rather than given its own `top-[Npx]` so it can never be
       clipped when the bar above it changes height. */
   below?: ReactNode;
+  transparent?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
+    <div
+      className={`sticky top-0 z-20 ${
+        transparent ? "" : "bg-bg/95 backdrop-blur"
+      }`}
+    >
       <div className="flex items-center gap-2 px-4 pb-2 pt-3">
         {onBack && (
           <button
             onClick={onBack}
             aria-label="返回"
-            className="-ml-2 grid size-11 place-items-center rounded-full text-[19px] text-ink active:bg-surface"
+            className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full text-[19px] text-ink active:bg-surface"
           >
             ‹
           </button>
         )}
         {title && (
-          <h1 className={`font-bold text-ink ${large ? "text-[24px]" : "text-[17px]"}`}>
+          <h1
+            className={`truncate font-bold text-ink ${
+              large ? "text-[24px]" : "text-[17px]"
+            }`}
+          >
             {title}
           </h1>
         )}
-        <div className="ml-auto flex items-center gap-1">{right}</div>
+        <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>
       </div>
       {below}
     </div>
@@ -81,7 +81,10 @@ export function Section({
         <div className="mb-3 flex items-baseline justify-between px-5">
           <h2 className="text-[17px] font-bold text-ink">{title}</h2>
           {action && (
-            <button onClick={onAction} className="text-[13px] font-semibold text-ink-3">
+            <button
+              onClick={onAction}
+              className="-my-2.5 -mr-2 px-2 py-2.5 text-[13px] font-semibold text-ink-3"
+            >
               {action}
             </button>
           )}
@@ -182,15 +185,78 @@ export function Chip({
   active?: boolean;
   onClick?: () => void;
 }) {
+  /* The pill stays 34px because a row of 44px chips looks like a row of
+     buttons. The tap target is extended past it with a pseudo-element, which
+     is how you satisfy the 44px rule without paying for it visually. */
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition ${
+      className={`relative shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition after:absolute after:inset-x-0 after:-inset-y-[5px] after:content-[''] ${
         active ? "bg-brand text-white" : "bg-surface text-ink-2 active:bg-surface-2"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+/** Underlined tab strip. Used inside a destination and inside a trip. */
+export function Tabs<T extends string>({
+  items,
+  value,
+  onChange,
+}: {
+  items: { id: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-5 overflow-x-auto px-5 no-scrollbar">
+      {items.map((i) => {
+        const on = i.id === value;
+        return (
+          <button
+            key={i.id}
+            onClick={() => onChange(i.id)}
+            className={`relative shrink-0 pb-2.5 pt-1 text-[14.5px] transition ${
+              on ? "font-bold text-ink" : "font-medium text-ink-3"
+            }`}
+          >
+            {i.label}
+            {on && (
+              <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-full bg-brand" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Two-state pill. The list/map switch, and nothing else — keep it rare. */
+export function Segmented<T extends string>({
+  items,
+  value,
+  onChange,
+}: {
+  items: { id: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-full bg-surface p-1">
+      {items.map((i) => (
+        <button
+          key={i.id}
+          onClick={() => onChange(i.id)}
+          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+            i.id === value ? "bg-bg text-ink shadow-[0_1px_3px_rgba(0,0,0,.08)]" : "text-ink-3"
+          }`}
+        >
+          {i.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -216,14 +282,16 @@ export function Avatar({
   );
 }
 
-/** Bottom sheet. Used for arrival, deals in context and the story player. */
+/** Bottom sheet. Arrival, more services, quick add, contextual offers. */
 export function Sheet({
   open,
   onClose,
+  title,
   children,
 }: {
   open: boolean;
   onClose: () => void;
+  title?: string;
   children: ReactNode;
 }) {
   if (!open) return null;
@@ -231,8 +299,15 @@ export function Sheet({
     <div className="absolute inset-0 z-40">
       <div className="rm-fade absolute inset-0 bg-black/35" onClick={onClose} />
       <div className="rm-up absolute inset-x-0 bottom-0 max-h-[86%] overflow-y-auto rounded-t-3xl bg-bg pb-6 no-scrollbar">
-        <div className="sticky top-0 flex justify-center bg-bg pb-1 pt-2.5">
-          <span className="h-1 w-9 rounded-full bg-line" />
+        <div className="sticky top-0 z-10 bg-bg pt-2.5">
+          <div className="flex justify-center pb-1">
+            <span className="h-1 w-9 rounded-full bg-line" />
+          </div>
+          {title && (
+            <div className="px-5 pb-2 pt-1.5 text-[17px] font-bold text-ink">
+              {title}
+            </div>
+          )}
         </div>
         {children}
       </div>
@@ -240,12 +315,29 @@ export function Sheet({
   );
 }
 
-export function Empty({ icon, text }: { icon: string; text: string }) {
+export function Empty({
+  icon,
+  text,
+  action,
+  onAction,
+}: {
+  icon: string;
+  text: string;
+  action?: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="grid place-items-center px-8 py-16 text-center">
       <div>
         <div className="text-4xl">{icon}</div>
-        <p className="mt-3 text-[14px] text-ink-3">{text}</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-ink-3">{text}</p>
+        {action && (
+          <div className="mt-5">
+            <Button onClick={onAction} full={false}>
+              {action}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -257,7 +349,7 @@ export function Row({
   value,
   onClick,
 }: {
-  icon?: string;
+  icon?: ReactNode;
   label: string;
   value?: string;
   onClick?: () => void;
@@ -267,10 +359,39 @@ export function Row({
       onClick={onClick}
       className="flex w-full items-center gap-3 px-5 py-3.5 text-left active:bg-surface"
     >
-      {icon && <span className="w-6 text-center text-[17px]">{icon}</span>}
+      {icon && <span className="w-6 shrink-0 text-center text-[17px]">{icon}</span>}
       <span className="flex-1 text-[15px] text-ink">{label}</span>
-      {value && <span className="text-[13px] text-ink-3">{value}</span>}
-      <span className="text-[15px] text-ink-3">›</span>
+      {value && <span className="shrink-0 text-[13px] text-ink-3">{value}</span>}
+      <span className="shrink-0 text-[15px] text-ink-3">›</span>
     </button>
+  );
+}
+
+/**
+ * The label that has to appear on anything commercial or fabricated.
+ *
+ * `sponsored` marks paid placement, `demo` marks made-up numbers. Both exist so
+ * that nothing in this prototype can be mistaken for either an organic
+ * recommendation or a real commercial relationship.
+ */
+export function Tag({ kind }: { kind: "sponsored" | "demo" | "later" }) {
+  const map = {
+    sponsored: { text: "贊助", cls: "bg-surface-2 text-ink-3" },
+    demo: { text: "Demo 資料", cls: "bg-surface-2 text-ink-3" },
+    later: { text: "即將推出", cls: "bg-brand-wash text-brand" },
+  }[kind];
+  return (
+    <span
+      className={`inline-block shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${map.cls}`}
+    >
+      {map.text}
+    </span>
+  );
+}
+
+/** Quiet footnote for a screen that shows prices or metrics. */
+export function Note({ children }: { children: ReactNode }) {
+  return (
+    <p className="px-5 py-4 text-[11.5px] leading-relaxed text-ink-3">{children}</p>
   );
 }
