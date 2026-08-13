@@ -3,7 +3,7 @@ import { poi } from "../data";
 import { story } from "../data/stories";
 import { createPlayer, formatClock, splitSentences, type VoicePlayer } from "../lib/speech";
 import { track } from "../lib/track";
-import { Button, Sheet, Thumb } from "./ui";
+import { Button, Sheet, Tag, Thumb } from "./ui";
 
 /**
  * Arrival prompt.
@@ -141,10 +141,13 @@ export function StoryPlayer({
 
         <h1 className="mt-2.5 text-[19px] font-bold leading-snug text-ink">{s.title}</h1>
 
+        {/* Play counts are the one number in this app that could be mistaken
+            for traction. There is none — so the label goes next to them. */}
         <div className="mt-2 flex items-center gap-2 text-[12.5px] text-ink-3">
           <span className="truncate">{s.narrator}</span>
           <span>·</span>
           <span className="num shrink-0">{s.plays.toLocaleString()} 次播放</span>
+          <Tag kind="demo" />
           <button
             onClick={() => setLiked((v) => !v)}
             aria-label="喜歡"

@@ -156,7 +156,12 @@ export interface Deal {
   id: string;
   category: DealCategory;
   title: string;
-  partner: PartnerId;
+  /**
+   * The platform an outbound tap would go to. Absent for a direct merchant
+   * offer — a 牛肉湯 shop does not come through an OTA, and naming one on that
+   * card would be inventing a supply chain as well as a partnership.
+   */
+  partner?: PartnerId;
   /** Indicative price only. The demo never claims a live rate. */
   priceTwd: number;
   unit?: string;

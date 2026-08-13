@@ -2,6 +2,7 @@ import { useState } from "react";
 import { dur, previewAdapt } from "../lib/adapt";
 import { km } from "../lib/geo";
 import { track } from "../lib/track";
+import { Tag } from "./ui";
 import type { Adapt, Trip } from "../types";
 
 /**
@@ -54,10 +55,16 @@ export function AdaptCard({
           <button
             onClick={onDismiss}
             aria-label="關閉"
-            className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-[15px] text-ink-3"
+            className="-mr-1 -mt-1 grid size-11 shrink-0 place-items-center rounded-full text-[15px] text-ink-3"
           >
             ✕
           </button>
+        </div>
+
+        {/* The trigger — a rain probability, a delay — is invented for the demo.
+            The plan it produces is computed; the thing that set it off is not. */}
+        <div className="mt-2">
+          <Tag kind="demo" />
         </div>
 
         {!proposed ? (

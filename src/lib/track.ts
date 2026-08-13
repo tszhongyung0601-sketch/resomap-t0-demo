@@ -57,14 +57,16 @@ export function clearEvents() {
 }
 
 /**
- * Fire an impression once per deal per session. Without this an OTA card that
- * re-renders on every keystroke would inflate the funnel's top by an order of
- * magnitude, and a funnel whose top is wrong tells you nothing.
+ * One impression per card mount.
+ *
+ * The obvious implementation — a module-level Set of ids already counted —
+ * breaks the funnel: it counts a card once for the whole page session while
+ * clicks keep accumulating, so revisiting the deals tab and tapping again
+ * produces more clicks than impressions and a click-through rate above 100%.
+ * Scoping it to the mount is both cheaper and actually correct: seeing the card
+ * again IS another impression.
  */
-const seen = new Set<string>();
 export function impression(dealId: string, partner: PartnerId, category: DealCategory) {
-  if (seen.has(dealId)) return;
-  seen.add(dealId);
   track("affiliate_impression", { dealId, partner, category });
 }
 
@@ -82,8 +84,13 @@ export interface Funnel {
   byDest: { destId: string; clicks: number }[];
 }
 
-/** Click-through from impression to click, as a fraction. 0 when nothing shown. */
-export const ctr = (f: Funnel) => (f.impressions ? f.clicks / f.impressions : 0);
+/**
+ * Click-through from impression to click, as a fraction. Clamped, because a
+ * business screen that can print "點擊率 133%" discredits every other number
+ * next to it — and the reader has no way to tell which ones.
+ */
+export const ctr = (f: Funnel) =>
+  f.impressions ? Math.min(1, f.clicks / f.impressions) : 0;
 
 export function funnel(): Funnel {
   const list = read();

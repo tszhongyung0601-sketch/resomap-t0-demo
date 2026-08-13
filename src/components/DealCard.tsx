@@ -22,15 +22,15 @@ export function DealCard({
   onOpen: (d: Deal) => void;
   compact?: boolean;
 }) {
-  const p = partner(deal.partner);
+  const p = deal.partner ? partner(deal.partner) : null;
 
   useEffect(() => {
-    impression(deal.id, deal.partner, deal.category);
+    if (deal.partner) impression(deal.id, deal.partner, deal.category);
   }, [deal.id, deal.partner, deal.category]);
 
-  const price = deal.comingLater
-    ? "尚未開放"
-    : `NT$ ${deal.priceTwd.toLocaleString()} 起${deal.unit ? ` / ${deal.unit}` : ""}`;
+  const price = `NT$ ${deal.priceTwd.toLocaleString()} 起${
+    deal.unit ? ` / ${deal.unit}` : ""
+  }`;
 
   return (
     <button
@@ -50,7 +50,7 @@ export function DealCard({
           {deal.comingLater && <Tag kind="later" />}
         </div>
         <div className="num mt-0.5 truncate text-[12.5px] text-ink-3">
-          {deal.comingLater ? "在地優惠・尚未開放" : `${p.name} · ${price}`}
+          {deal.comingLater || !p ? "在地商家・尚未開放" : `${p.name} · ${price}`}
         </div>
       </div>
       {!deal.comingLater && (
@@ -91,8 +91,13 @@ export function OutboundSheet({
     }
   }, [deal]);
 
-  if (!deal) return null;
+  if (!deal || !deal.partner) return null;
   const p = partner(deal.partner);
+  /* Dropping the unit here turns "NT$ 4,200 起 / 晚" into what reads as a total
+     for the whole stay. */
+  const price = `NT$ ${deal.priceTwd.toLocaleString()} 起${
+    deal.unit ? ` / ${deal.unit}` : ""
+  }`;
 
   return (
     <Sheet open onClose={onClose}>
@@ -102,7 +107,7 @@ export function OutboundSheet({
           <div className="min-w-0">
             <div className="truncate text-[16px] font-bold text-ink">{deal.title}</div>
             <div className="num text-[13px] text-ink-3">
-              {p.name} · NT$ {deal.priceTwd.toLocaleString()} 起
+              {p.name} · {price}
             </div>
           </div>
         </div>
