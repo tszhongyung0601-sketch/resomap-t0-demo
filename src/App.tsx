@@ -15,6 +15,7 @@ import {
 import { applyAdapt } from "./lib/adapt";
 import { distance } from "./lib/geo";
 import { stopSpeaking } from "./lib/speech";
+import { focusTrip } from "./lib/trip";
 import { track } from "./lib/track";
 import { NavContext, type Nav, type Route, type Tab } from "./nav";
 import { Explore } from "./screens/Explore";
@@ -68,7 +69,10 @@ export default function App() {
 
   const route: Route | null = stack[stack.length - 1] ?? null;
   const ongoing = trips.find((t) => t.phase === "ongoing") ?? null;
-  const focusTrip = ongoing ?? trips[0] ?? null;
+  /* The same rule the home screen's card uses. Two different answers here meant
+     the map and the deals tab could open on a different city than the trip the
+     traveller had just tapped. */
+  const focus = focusTrip(trips) ?? null;
 
   const say = useCallback((msg: string) => {
     setToast(msg);
@@ -253,7 +257,7 @@ export default function App() {
   else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
   else if (route?.k === "admin") screen = <AdminDemo />;
-  else if (route?.k === "map") screen = <MapTab destId={focusTrip?.destId ?? null} />;
+  else if (route?.k === "map") screen = <MapTab destId={focus?.destId ?? null} />;
   else if (route?.k === "profile") screen = <Profile />;
   else if (route?.k === "prefs") screen = <Prefs />;
   else if (route?.k === "pool") screen = <Pool />;
@@ -307,7 +311,7 @@ export default function App() {
         screen = <Trips trips={trips} />;
         break;
       case "deals":
-        screen = <Deals destId={focusTrip?.destId ?? null} />;
+        screen = <Deals destId={focus?.destId ?? null} />;
         break;
       default:
         screen = <Explore trips={trips} />;
@@ -352,7 +356,7 @@ export default function App() {
       <AiSheet
         open={aiSheet}
         onClose={() => setAiSheet(false)}
-        trip={ongoing ?? focusTrip}
+        trip={ongoing ?? focus}
         used={usedAdapts}
         onAdapt={fireAdapt}
       />

@@ -20,10 +20,27 @@ const TABS: { id: TabId; label: string }[] = [
  * destination runs out. On a city with two records that fills 為你推薦 with
  * Tokyo tickets under a line naming 宜蘭 — the exact thing this screen exists to
  * avoid — so once we know where the trip is, the tail is cut rather than shown.
+ *
+ * Its default cap of eight is sized for a home-screen strip, and it counts the
+ * padding it is about to hand over. 台南 has ten records of its own and 東京
+ * nine, so on both demo cities the cap ran out inside the city's own rows and
+ * 台灣 eSIM / 旅平險 never arrived — under a 不分城市都用得到 heading this
+ * screen renders specifically to hold them. This is the screen the traveller
+ * opened to see offers, and the category tabs below are already uncapped, so
+ * the relevant list is shown whole.
  */
 function recoDeals(destId: string | null): Deal[] {
-  const list = relevantDeals(destId);
-  return destId ? list.filter((d) => !d.destId || d.destId === destId) : list;
+  if (!destId) return relevantDeals(null);
+  return relevantDeals(destId, DEALS.length).filter(
+    (d) => !d.destId || d.destId === destId,
+  );
+}
+
+interface Why {
+  /** The line printed above the card. */
+  text: string;
+  /** Lower sorts higher. 0 = the traveller has already added this place. */
+  rank: number;
 }
 
 /**
@@ -33,6 +50,13 @@ function recoDeals(destId: string | null): Deal[] {
  * already on the itinerary, the city is the one being travelled to, the deal is
  * transport for a trip that exists. Anything else gets no line — "ResoMap 推薦"
  * is not a reason, it is the absence of one wearing the word.
+ *
+ * `rank` is that same order, made load-bearing. The line at the top of this
+ * screen promises 已經加入的地點排最上面, and until the list was actually sorted
+ * by it that was just a sentence: the cards came out in dataset order, so a deal
+ * for a place already on the itinerary landed wherever `deals.ts` happened to
+ * list it. A stated ordering rule the code does not follow is the same class of
+ * defect as an invented number — it is checkable, and it was wrong.
  */
 function makeReason(trips: Trip[], focusDestId: string | null) {
   const plannedPois = new Set<string>();
@@ -44,18 +68,18 @@ function makeReason(trips: Trip[], focusDestId: string | null) {
   }
   const home = focusDestId ?? trips[0]?.destId ?? null;
 
-  return (deal: Deal): string | null => {
+  return (deal: Deal): Why | null => {
     if (deal.poiId && plannedPois.has(deal.poiId)) {
       const name = BY_POI[deal.poiId]?.name;
-      if (name) return `你已加入${name}`;
+      if (name) return { text: `你已加入${name}`, rank: 0 };
     }
     if (deal.destId && tripDests.has(deal.destId)) {
       const city = dest(deal.destId)?.name;
-      if (city) return `適合你的${city}行程`;
+      if (city) return { text: `適合你的${city}行程`, rank: 1 };
     }
     if (deal.category === "transport" && home) {
       const city = dest(home)?.name;
-      if (city) return `與你的${city}行程相關`;
+      if (city) return { text: `與你的${city}行程相關`, rank: 2 };
     }
     return null;
   };
@@ -89,7 +113,12 @@ export function Deals({ destId }: { destId: string | null }) {
      the tab they just tapped. */
   const scored =
     tab === "reco" ? list.map((d) => ({ d, why: reason(d) })) : [];
-  const forYou = scored.filter((s) => s.why);
+  /* `sort` is stable, so cards sharing a rank keep the city-first order
+     `recoDeals` handed over — the two rules compose instead of fighting. The
+     array is the one `filter` just produced, so nothing shared is mutated. */
+  const forYou = scored
+    .filter((s): s is { d: Deal; why: Why } => s.why !== null)
+    .sort((a, b) => a.why.rank - b.why.rank);
   const rest = scored.filter((s) => !s.why);
   const split = forYou.length > 0;
 
@@ -131,7 +160,7 @@ export function Deals({ destId }: { destId: string | null }) {
             </h2>
             <div className="space-y-2.5">
               {forYou.map(({ d, why }) => (
-                <ReasonedCard key={d.id} deal={d} why={why} onOpen={nav.openDeal} />
+                <ReasonedCard key={d.id} deal={d} why={why.text} onOpen={nav.openDeal} />
               ))}
             </div>
             {rest.length > 0 && (
@@ -179,12 +208,13 @@ function ReasonedCard({
   onOpen,
 }: {
   deal: Deal;
-  why: string | null;
+  /** Never empty — a card without a reason is rendered as a plain DealCard. */
+  why: string;
   onOpen: (d: Deal) => void;
 }) {
   return (
     <div>
-      {why && <p className="px-1 pb-1 text-[12px] text-ink-3">{why}</p>}
+      <p className="px-1 pb-1 text-[12px] text-ink-3">{why}</p>
       <DealCard deal={deal} onOpen={onOpen} />
     </div>
   );

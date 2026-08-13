@@ -70,7 +70,17 @@ export function TripHome({ trip }: { trip: Trip }) {
         onBack={nav.back}
         right={
           <MapButton
-            onClick={() => nav.go({ k: "tripmap", tripId: trip.id, n: 1 })}
+            /* The day the traveller is actually on, not Day 1. The line
+               directly below this button says 今天是第 2 天; opening the map on
+               Day 1's route contradicts it on the same screen. DayPlan's copy
+               of this button already passes the day it is showing. */
+            onClick={() =>
+              nav.go({
+                k: "tripmap",
+                tripId: trip.id,
+                n: trip.phase === "ongoing" ? trip.today : 1,
+              })
+            }
           />
         }
       />
@@ -145,7 +155,14 @@ export function TripHome({ trip }: { trip: Trip }) {
         </section>
       )}
 
-      <div className="h-24" />
+      {/* `shrink-0`, or this spacer is not there at all. Screen is a flex
+          column and a flex item defaults to shrink:1 with min-height:auto — an
+          empty div's min-content is 0, so on any trip long enough to scroll
+          (which is every one of them) it was the first thing the layout gave
+          away: measured 0px on both the 3-day and the 5-day trip, and the last
+          card sat flush against the tab bar. Same fix, same reason, as the
+          spacer above 加入行程 on the POI page. */}
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }

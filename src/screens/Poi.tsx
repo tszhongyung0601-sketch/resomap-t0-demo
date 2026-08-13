@@ -13,6 +13,18 @@ import { POI_KIND_LABELS, type Story } from "../types";
 
 const THIS_YEAR = new Date().getFullYear();
 
+/**
+ * How far 附近 is allowed to stretch.
+ *
+ * Roughly a quarter of an hour's hop — far enough to be worth tacking onto the
+ * same visit, near enough that the word still means what it says. Restricting
+ * to the same destination was not enough on its own: 台東 has three POIs spread
+ * over the county, so 台東森林公園's third 附近 row was 三仙台, 47 km away.
+ * A place that fails this simply does not appear, and a POI with nothing inside
+ * the radius gets no 附近 section at all.
+ */
+const NEARBY_RADIUS_M = 8000;
+
 /* The guides write their dates in Chinese numerals because they go through
    speech synthesis — 一六六二年, not 1662年 — so that is what has to be read
    back out. 千 and 百 are deliberately not in the class: it keeps 三百五十多年
@@ -61,17 +73,18 @@ function cnHundreds(h: number): string {
  * date is inside the last century gets no scene at all, which is why 駁二 and
  * 松園別館 do not have one. Inventing a century for a place we cannot date is
  * exactly the kind of confident nonsense these guides were written against.
+ *
+ * Which is why there is no fallback. A "台南 and 淡水 are obviously old enough"
+ * default used to sit here handing out 三百 to any story that happened not to
+ * print a date — a figure derived from nothing, on the one image a traveller
+ * cannot check, next to a label that says AI made it. The guide names a century
+ * or the scene does not appear.
  */
-function sceneEra(st: Story, destId: string, area: string): string | null {
+function sceneEra(st: Story): string | null {
   const y = earliestYear(`${st.title}${st.short}${st.body}`);
-  if (y !== null) {
-    const h = Math.floor((THIS_YEAR - y) / 100);
-    return h >= 1 ? cnHundreds(h) : null;
-  }
-  /* The two heritage places old enough that the century is not in question
-     even on the day a guide happens not to print a date. Everywhere else gets
-     no scene rather than a made-up one. */
-  return destId === "tainan" || area.startsWith("淡水") ? "三百" : null;
+  if (y === null) return null;
+  const h = Math.floor((THIS_YEAR - y) / 100);
+  return h >= 1 ? cnHundreds(h) : null;
 }
 
 /**
@@ -108,16 +121,18 @@ export function Poi({ id }: { id: string }) {
    * Real distances from real coordinates — the one number on this page a
    * traveller can check against the map.
    *
-   * Restricted to this destination on purpose. Sorting every POI in the dataset
-   * by distance and taking three works fine in 台南, where there are twelve of
-   * them; in 首爾, where there are three, the third row is 東京 at 1,160 km
-   * under a heading that says 附近. "Nearby" has to mean nearby or it means
-   * nothing.
+   * Restricted to this destination AND to a radius, because the city alone does
+   * not bound anything. Sorting every POI in the dataset by distance and taking
+   * three puts 東京 at 1,160 km under a heading that says 附近 in 首爾; keeping
+   * to one destination shrank that to 47 km in 台東, which is the same defect
+   * wearing a smaller number. "Nearby" has to mean nearby or it means nothing,
+   * so the cut is on the distance, not on the count.
    */
   const nearby = useMemo(() => {
     if (!p) return [];
     return POIS.filter((o) => o.id !== p.id && o.destId === p.destId)
       .map((place) => ({ place, metres: distance(p, place) }))
+      .filter((n) => n.metres <= NEARBY_RADIUS_M)
       .sort((a, b) => a.metres - b.metres)
       .slice(0, 3);
   }, [p]);
@@ -125,7 +140,7 @@ export function Poi({ id }: { id: string }) {
   if (!p) return null;
 
   const st = story(p.storyId);
-  const era = st ? sceneEra(st, p.destId, p.area) : null;
+  const era = st ? sceneEra(st) : null;
 
   /* Two blocks, two promises: a ticket only where the venue genuinely sells
      admission, a local offer only ever as 即將推出. Filtering by category is

@@ -29,8 +29,7 @@ export type Route =
      destination; the other was thirteen rows of 即將推出. */
   | { k: "map" }
   | { k: "profile" }
-  /* 一起規劃 */
-  | { k: "room" }
+  /* 一起規劃. The room itself is the tab root, so it needs no route. */
   | { k: "prefs" }
   | { k: "pool" }
   | { k: "consensus2" };

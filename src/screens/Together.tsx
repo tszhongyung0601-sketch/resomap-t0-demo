@@ -53,12 +53,41 @@ const MY_VOTES: Record<string, VoteValue> = Object.fromEntries(
  */
 const POOL = [...tallies(ROOM)].sort((a, b) => b.yes - a.yes || b.maybe - a.maybe);
 
+/**
+ * The denominator behind 共識.
+ *
+ * `lib/consensus` scores against the places the room has actually voted on, not
+ * against the whole shortlist — an untouched place is not evidence of agreement
+ * or of disagreement. The screen has to count the same way, or the fraction it
+ * prints will not match the list printed underneath it.
+ */
+const VOTED = POOL.filter((t) => t.yes + t.maybe + t.no > 0);
+
+/**
+ * Who asked for an interest. The same predicate `lib/consensus` counts with, so
+ * the faces and the count can never disagree — which is the point of showing
+ * faces instead of a bar: the reader can check it.
+ */
+const wantedBy = (id: InterestId): TravellerId[] =>
+  ROOM.members.filter((m) => m.preference?.interests.includes(id)).map((m) => m.id);
+
+const names = (ids: TravellerId[]) => ids.map((i) => BY_TRAVELLER[i].name).join("、");
+
 /** Overlapping avatars, for the people behind a count. */
-function Faces({ who, size = 20 }: { who: TravellerId[]; size?: number }) {
+function Faces({
+  who,
+  size = 20,
+  ring = "ring-bg",
+}: {
+  who: TravellerId[];
+  size?: number;
+  /** Has to match whatever sits behind them, or the ring cuts a hole in the card. */
+  ring?: string;
+}) {
   return (
     <div className="flex -space-x-1.5">
       {who.map((w) => (
-        <span key={w} className="rounded-full ring-2 ring-bg">
+        <span key={w} className={`rounded-full ring-2 ${ring}`}>
           <Avatar {...BY_TRAVELLER[w]} size={size} />
         </span>
       ))}
@@ -127,10 +156,17 @@ export function Together() {
   const mineFilled = Boolean(MINE);
 
   const copy = () => {
-    navigator.clipboard?.writeText(`https://${INVITE_LINK}`).catch(() => {
-      /* denied clipboard permission is not worth an error state in a demo */
-    });
-    setCopied(true);
+    /* 已複製 has to mean it. Over plain http `navigator.clipboard` is undefined
+       and the optional chain short-circuits, so setting the flag unconditionally
+       claims a copy that never happened — and the traveller pastes whatever was
+       on their clipboard before into the group chat. The link is printed above
+       either way, so failing quietly costs them nothing. */
+    navigator.clipboard
+      ?.writeText(`https://${INVITE_LINK}`)
+      .then(() => setCopied(true))
+      .catch(() => {
+        /* denied permission is not worth an error state in a demo */
+      });
   };
 
   return (
@@ -353,7 +389,9 @@ export function Pool() {
 
                   {voted ? (
                     <div className="mt-2 flex items-center gap-3">
-                      {VOTES.map((v) => (
+                      {/* Zeros are not information. "🤔 0 👎 0" on every row turns
+                          a list of places into a table of counters. */}
+                      {VOTES.filter((v) => t[v] > 0).map((v) => (
                         <span key={v} className="num text-[12.5px] text-ink-2">
                           {VOTE_EMOJI[v]} {t[v]}
                         </span>
@@ -424,64 +462,85 @@ export function ConsensusView() {
     <Screen>
       <TopBar title="AI 幫大家排行程" onBack={nav.back} />
 
-      <div className="px-5 pt-3">
-        <div className="num text-[40px] font-bold leading-none tracking-tight text-ink">
-          {pct(c.score)}
-        </div>
-        <div className="mt-2.5 text-[15px] font-semibold text-ink">旅行共識</div>
-        <div className="num mt-1 text-[13px] text-ink-3">
-          {c.filled} / {c.total} 位旅伴已經填好偏好
-        </div>
+      {/* No 40px score tile, no distribution bars.
+          A group arguing about 奇美博物館 does not want a KPI — it wants to know
+          what is settled, what is not, and who is on which side. The percentage
+          survives because the previous screen advertises it, but it sits under
+          the sentence that derives it rather than above a chart: 共識 80% means
+          nothing on its own, and "投過票的 10 個地點裡有 8 個沒有人反對" can be
+          checked against the list immediately below it. */}
+      <div className="px-5 pt-2">
+        <p className="text-[17px] font-semibold leading-relaxed text-ink">
+          投過票的 {VOTED.length} 個地點裡，有 {c.agreed.length} 個沒有人反對。
+        </p>
+        <p className="num mt-1.5 text-[13px] text-ink-3">共識 {pct(c.score)}</p>
       </div>
 
-      <Section title="大家的興趣分布">
+      <Section title="大家想做的事">
         <div className="space-y-2.5 px-5">
           {c.interests.map((b) => (
             <div key={b.id} className="flex items-center gap-3">
-              <span className="w-10 shrink-0 text-[13px] text-ink-2">{b.label}</span>
-              <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface">
-                <span
-                  className="block h-full rounded-full bg-brand/30"
-                  style={{ width: `${(b.count / b.total) * 100}%` }}
-                />
-              </span>
-              <span className="num w-8 shrink-0 text-right text-[12px] text-ink-3">
-                {b.count}/{b.total}
+              <span className="text-[14.5px] text-ink">{b.label}</span>
+              <div className="ml-auto">
+                <Faces who={wantedBy(b.id)} size={19} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* The caveat belongs here and nowhere else: a missing preference moves
+            these rows, not the score — Susan voted on everything. Parked under
+            the percentage it implied the opposite. */}
+        <p className="num px-5 pt-3.5 text-[12.5px] text-ink-3">
+          {c.filled} / {c.total} 位旅伴已經填好偏好
+        </p>
+      </Section>
+
+      <Section title="大家都想去">
+        <div className="space-y-2 px-5">
+          {c.agreed.map((t) => (
+            <div key={t.poiId} className="flex items-center gap-2.5">
+              <span className="text-[15px] text-ok">✓</span>
+              <span className="truncate text-[14.5px] font-semibold text-ink">
+                {poi(t.poiId).name}
               </span>
             </div>
           ))}
         </div>
       </Section>
 
-      <Section title="AI 找到">
+      <Section title="還要一起決定">
         <div className="space-y-3 px-5">
-          <div className="flex gap-2.5 text-[14.5px] text-ink">
-            <span className="text-ok">✓</span>
-            <span className="num">{c.agreed.length} 個大家都喜歡的景點</span>
-          </div>
-
-          <div>
-            <div className="flex gap-2.5 text-[14.5px] text-ink">
-              <span className="text-warn">!</span>
-              <span className="num">{c.contested.length} 個需要討論的景點</span>
+          {c.contested.map((t) => (
+            <div key={t.poiId} className="rounded-2xl bg-surface p-4">
+              <div className="text-[15px] font-bold text-ink">{poi(t.poiId).name}</div>
+              {/* Names and faces instead of "2 想去 · 1 不想去". The counts were
+                  the same information with the useful half removed: you cannot
+                  go and talk to a 2. */}
+              <div className="mt-2 space-y-1.5">
+                {t.by.yes.length > 0 && (
+                  <div className="flex items-center gap-2 text-[13.5px] text-ink-2">
+                    <Faces who={t.by.yes} size={20} ring="ring-surface" />
+                    <span>{names(t.by.yes)} 想去</span>
+                  </div>
+                )}
+                {t.by.no.length > 0 && (
+                  <div className="flex items-center gap-2 text-[13.5px] text-ink-2">
+                    <Faces who={t.by.no} size={20} ring="ring-surface" />
+                    <span>{names(t.by.no)} 不想去</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="ml-6 mt-2 space-y-1.5">
-              {c.contested.map((t) => (
-                <div key={t.poiId} className="flex items-baseline gap-2">
-                  <span className="truncate text-[14px] text-ink-2">{poi(t.poiId).name}</span>
-                  <span className="num shrink-0 text-[12.5px] text-ink-3">
-                    {t.yes} 想去 · {t.no} 不想去
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </Section>
 
       {s && (
         <div className="mt-7 px-5">
-          <div className="rounded-2xl border border-brand/25 bg-brand-wash p-4">
+          {/* The wash is the AI highlight, on its own. An orange hairline round
+              it is a third orange thing on a screen that already ends in an
+              orange CTA — same call Group.tsx made. */}
+          <div className="rounded-2xl bg-brand-wash p-4">
             <div className="text-[12px] font-bold tracking-wide text-brand">AI 建議</div>
             <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">{s.reason}</p>
 

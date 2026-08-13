@@ -1,6 +1,7 @@
 import { ME, STORIES, TW_DESTINATIONS, poi, storiesForDest } from "../data";
 import { Cover } from "../components/Cover";
 import { Avatar, Button, Card, Headphones, Screen } from "../components/ui";
+import { focusTrip } from "../lib/trip";
 import { useNav } from "../nav";
 import type { Destination, Story, Trip } from "../types";
 
@@ -98,15 +99,6 @@ function Hero({ hasTrip }: { hasTrip: boolean }) {
 }
 
 /* ---------------------------------------------------------- 2 · next trip */
-
-/** Ongoing beats planned; among the planned, the one leaving soonest. */
-function focusTrip(trips: Trip[]): Trip | undefined {
-  const ongoing = trips.find((t) => t.phase === "ongoing");
-  if (ongoing) return ongoing;
-  /* `daysUntil` is optional, so a trip without one sorts to the back rather
-     than to the front — an unknown departure is not an imminent one. */
-  return [...trips].sort((a, b) => (a.daysUntil ?? 9999) - (b.daysUntil ?? 9999))[0];
-}
 
 function when(trip: Trip): string {
   if (trip.phase === "ongoing") return `今天是第 ${trip.today} 天`;
