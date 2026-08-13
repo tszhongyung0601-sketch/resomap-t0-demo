@@ -232,7 +232,11 @@ export function MapTab({ destId }: { destId: string | null }) {
             這個範圍還沒有{label === "全部" ? "地點" : label}。
           </p>
         ) : (
-          <div className="mt-1 max-h-[332px] overflow-y-auto px-5 pb-2 no-scrollbar">
+          /* Four rows visible, the fifth a short scroll away. The floating AI
+             button sits over the bottom of this panel, so the list carries
+             enough trailing padding for its last row to be scrolled clear of
+             it — the same thing Apple Maps does with its own bottom sheet. */
+          <div className="mt-1 max-h-[266px] overflow-y-auto px-5 pb-14 no-scrollbar">
             {nearby.map((p) => (
               <button
                 key={p.id}

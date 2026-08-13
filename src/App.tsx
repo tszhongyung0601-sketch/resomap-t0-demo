@@ -341,61 +341,65 @@ export default function App() {
 
   const hideNav = route?.k === "create" || Boolean(story);
 
+  const overlay = (
+    <>
+      {arrival && !story && (
+        <ArrivalSheet
+          poiId={arrival}
+          onPlay={() => {
+            setStory(arrival);
+            setArrival(null);
+          }}
+          onLater={() => setArrival(null)}
+        />
+      )}
+
+      {story && <StoryPlayer poiId={story} onClose={() => setStory(null)} />}
+
+      <OutboundSheet deal={deal} onClose={() => setDeal(null)} />
+
+      {services && <MoreServicesSheet onClose={() => setServices(false)} />}
+
+      {adding && (
+        <AddPoiSheet
+          tripId={adding.tripId}
+          day={adding.day}
+          onClose={() => setAdding(null)}
+        />
+      )}
+
+      <AiSheet
+        open={aiSheet}
+        onClose={() => setAiSheet(false)}
+        mode={aiMode}
+        trip={aiTrip}
+        destId={focusTrip?.destId ?? null}
+        used={usedAdapts}
+        onAdapt={fireAdapt}
+        onCreate={() => {
+          setAiSheet(false);
+          nav.go({ k: "create" });
+        }}
+        onPoi={(id) => {
+          setAiSheet(false);
+          nav.go({ k: "poi", id });
+        }}
+      />
+
+      {toast && (
+        <div className="rm-in pointer-events-none absolute inset-x-0 bottom-28 z-50 flex justify-center">
+          <span className="rounded-full bg-ink px-4 py-2.5 text-[13px] font-semibold text-white">
+            {toast}
+          </span>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <NavContext.Provider value={nav}>
-      <AppShell tab={tab} onTab={nav.tab} showNav={!hideNav} ai={ai}>
+      <AppShell tab={tab} onTab={nav.tab} showNav={!hideNav} ai={ai} overlay={overlay}>
         {screen}
-
-        {arrival && !story && (
-          <ArrivalSheet
-            poiId={arrival}
-            onPlay={() => {
-              setStory(arrival);
-              setArrival(null);
-            }}
-            onLater={() => setArrival(null)}
-          />
-        )}
-
-        {story && <StoryPlayer poiId={story} onClose={() => setStory(null)} />}
-
-        <OutboundSheet deal={deal} onClose={() => setDeal(null)} />
-
-        {services && <MoreServicesSheet onClose={() => setServices(false)} />}
-
-        {adding && (
-          <AddPoiSheet
-            tripId={adding.tripId}
-            day={adding.day}
-            onClose={() => setAdding(null)}
-          />
-        )}
-
-        <AiSheet
-          open={aiSheet}
-          onClose={() => setAiSheet(false)}
-          mode={aiMode}
-          trip={aiTrip}
-          destId={focusTrip?.destId ?? null}
-          used={usedAdapts}
-          onAdapt={fireAdapt}
-          onCreate={() => {
-            setAiSheet(false);
-            nav.go({ k: "create" });
-          }}
-          onPoi={(id) => {
-            setAiSheet(false);
-            nav.go({ k: "poi", id });
-          }}
-        />
-
-        {toast && (
-          <div className="rm-in pointer-events-none absolute inset-x-0 bottom-24 z-40 flex justify-center">
-            <span className="rounded-full bg-ink px-4 py-2.5 text-[13px] font-semibold text-white">
-              {toast}
-            </span>
-          </div>
-        )}
       </AppShell>
     </NavContext.Provider>
   );

@@ -301,12 +301,11 @@ export function Sheet({
   children: ReactNode;
 }) {
   if (!open) return null;
-  /* `fixed`, not `absolute`: the phone frame in AppShell is a transform
-     ancestor, so fixed resolves to exactly the 393x852 box — and unlike
-     absolute it covers the tab bar, which otherwise stayed lit and tappable
-     behind a modal backdrop. */
+  /* Absolute against the shell, which is why sheets are handed to AppShell's
+     `overlay` slot rather than rendered inside a screen: from there this covers
+     the tab bar too, instead of leaving it lit and tappable behind a modal. */
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="absolute inset-0 z-40">
       <div className="rm-fade absolute inset-0 bg-black/35" onClick={onClose} />
       <div className="rm-up absolute inset-x-0 bottom-0 max-h-[86%] overflow-y-auto rounded-t-3xl bg-bg pb-6 no-scrollbar">
         <div className="sticky top-0 z-10 bg-bg pt-2.5">

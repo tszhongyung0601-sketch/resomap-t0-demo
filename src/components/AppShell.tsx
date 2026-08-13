@@ -25,12 +25,22 @@ export function AppShell({
   onTab,
   showNav,
   ai,
+  overlay,
   children,
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
   showNav: boolean;
   ai: { label: string; onClick: () => void } | null;
+  /**
+   * Sheets, the story player, the toast.
+   *
+   * These are a sibling of the screen rather than part of it, because the
+   * screen area is clipped and sits above the tab bar: anything rendered inside
+   * it can neither cover the nav nor escape the clip. Handing them to the shell
+   * is what lets a modal be modal.
+   */
+  overlay?: ReactNode;
   children: ReactNode;
 }) {
   const [scale, setScale] = useState(1);
@@ -40,7 +50,9 @@ export function AppShell({
     const fit = () => {
       const narrow = window.innerWidth < 520;
       setPhone(!narrow);
-      setScale(narrow ? 1 : Math.min(1, (window.innerHeight - 48) / 852));
+      /* The bezel adds to the height that has to fit on screen, so it is part
+         of the sum — otherwise the frame's bottom edge falls off the viewport. */
+      setScale(narrow ? 1 : Math.min(1, (window.innerHeight - 40) / (SCREEN_H + BEZEL * 2)));
     };
     fit();
     window.addEventListener("resize", fit);
@@ -48,14 +60,14 @@ export function AppShell({
   }, []);
 
   const app = (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg">
+    <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-bg">
       <div className="relative flex-1 overflow-hidden">{children}</div>
 
       {ai && (
         <button
           onClick={ai.onClick}
           className="absolute z-30 flex items-center gap-2 rounded-full bg-brand py-3.5 pl-4 pr-5 text-[14px] font-bold text-white shadow-[0_6px_20px_rgba(255,98,16,.35)] transition active:scale-[.97]"
-          style={{ right: 16, bottom: showNav ? 86 : 24 }}
+          style={{ right: 16, bottom: showNav ? 98 : 32 }}
         >
           <Sparkle />
           {ai.label}
@@ -63,7 +75,10 @@ export function AppShell({
       )}
 
       {showNav && (
-        <nav className="z-20 flex shrink-0 items-stretch border-t border-line bg-bg/95 pb-2 pt-1.5 backdrop-blur">
+        /* pb leaves the home indicator its own strip, the way a phone's bottom
+           safe area does — without it the labels and the bar sit on top of each
+           other. */
+        <nav className="z-20 flex shrink-0 items-stretch border-t border-line bg-bg/95 pb-[20px] pt-1.5 backdrop-blur">
           {TABS.map((t) => {
             const on = t.id === tab;
             return (
@@ -84,20 +99,106 @@ export function AppShell({
           })}
         </nav>
       )}
+
+      {overlay}
     </div>
   );
 
-  if (!phone) return <div className="h-full w-full">{app}</div>;
+  /* On a real phone the device is already there. Drawing a second one around it
+     would be silly, and the status bar would duplicate the operating system's. */
+  if (!phone) {
+    return <div className="flex h-full w-full flex-col">{app}</div>;
+  }
 
   return (
     <div className="grid h-full w-full place-items-center">
-      <div style={{ height: 852 * scale }}>
+      <div style={{ height: (SCREEN_H + BEZEL * 2) * scale }}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
-          <div className="h-[852px] w-[393px] overflow-hidden rounded-[38px] bg-bg shadow-[0_18px_50px_rgba(0,0,0,.18)] ring-1 ring-black/5">
-            {app}
+          <div className="relative">
+            {/* Side buttons sit behind the body so they read as part of it. */}
+            <span className="absolute -left-[3px] top-[132px] h-8 w-[3px] rounded-l bg-[#2a2a2e]" />
+            <span className="absolute -left-[3px] top-[186px] h-14 w-[3px] rounded-l bg-[#2a2a2e]" />
+            <span className="absolute -left-[3px] top-[254px] h-14 w-[3px] rounded-l bg-[#2a2a2e]" />
+            <span className="absolute -right-[3px] top-[212px] h-20 w-[3px] rounded-r bg-[#2a2a2e]" />
+
+            {/* The body. The thin inner ring is the polished metal edge — one
+                highlight is enough; a stack of gradients starts to look like a
+                product render rather than a screen the app is running on. */}
+            <div
+              className="rounded-[60px] bg-[#17171a] shadow-[0_30px_70px_-12px_rgba(0,0,0,.45),0_0_0_1px_rgba(255,255,255,.07)_inset]"
+              style={{ padding: BEZEL }}
+            >
+              <div
+                className="relative flex flex-col overflow-hidden rounded-[46px] bg-bg"
+                style={{ width: SCREEN_W, height: SCREEN_H }}
+              >
+                <StatusBar />
+                {app}
+                {/* Home indicator. Device chrome, so it stays above even a
+                    full-screen overlay — as it does on a real phone. */}
+                <span className="pointer-events-none absolute inset-x-0 bottom-[7px] z-[60] flex justify-center">
+                  <span className="h-[5px] w-[134px] rounded-full bg-ink/25" />
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* iPhone 15/16 logical size, plus a bezel wide enough to read as a device. */
+const SCREEN_W = 393;
+const SCREEN_H = 852;
+const BEZEL = 13;
+
+/**
+ * Device chrome, not app data.
+ *
+ * 9:41 is the convention every phone mock-up uses, which is exactly why it is
+ * the right choice: nobody reads it as information. A live clock here would be
+ * the only true number on a screen full of demo data, which is a strange thing
+ * to spend attention on.
+ */
+function StatusBar() {
+  return (
+    <div className="relative z-30 flex h-[52px] shrink-0 items-end justify-between px-[30px] pb-1.5">
+      <span className="num text-[15px] font-semibold tracking-tight text-ink">9:41</span>
+
+      {/* Dynamic island. Drawn over the status bar, so nothing has to move. */}
+      <span className="absolute left-1/2 top-[11px] h-[30px] w-[110px] -translate-x-1/2 rounded-full bg-[#0b0b0d]" />
+
+      <span className="flex items-center gap-[5px] text-ink">
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor" aria-hidden>
+          <rect x="0" y="7.5" width="3" height="4.5" rx="1" />
+          <rect x="5" y="5" width="3" height="7" rx="1" />
+          <rect x="10" y="2.5" width="3" height="9.5" rx="1" />
+          <rect x="15" y="0" width="3" height="12" rx="1" />
+        </svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor" aria-hidden>
+          <path d="M8 11.2 5.9 8.9a3 3 0 0 1 4.2 0zM3.6 6.6 2 4.9a9 9 0 0 1 12 0l-1.6 1.7a6.7 6.7 0 0 0-8.8 0z" />
+        </svg>
+        <svg width="26" height="13" viewBox="0 0 26 13" aria-hidden>
+          <rect
+            x="0.6"
+            y="0.6"
+            width="22"
+            height="11.8"
+            rx="3.6"
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity="0.38"
+            strokeWidth="1.2"
+          />
+          <rect x="2.4" y="2.4" width="15" height="8.2" rx="2.2" fill="currentColor" />
+          <path
+            d="M24.2 4.4a2.6 2.6 0 0 1 0 4.2z"
+            fill="currentColor"
+            fillOpacity="0.38"
+          />
+        </svg>
+      </span>
     </div>
   );
 }
