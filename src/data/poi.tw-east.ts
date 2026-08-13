@@ -33,6 +33,7 @@ export const POI_TW_EAST: Poi[] = [
   },
   {
     id: "traditional-arts",
+    storyId: "st-arts",
     name: "國立傳統藝術中心",
     destId: "yilan",
     area: "五結鄉",
@@ -79,6 +80,7 @@ export const POI_TW_EAST: Poi[] = [
   },
   {
     id: "pine-garden",
+    storyId: "st-pinegarden",
     name: "松園別館",
     destId: "hualien",
     area: "花蓮市",
@@ -182,6 +184,7 @@ export const POI_TW_EAST: Poi[] = [
   /* ------------------------------------------------------------- 台東 */
   {
     id: "tiehua",
+    storyId: "st-tiehua",
     name: "鐵花村音樂聚落",
     destId: "taitung",
     area: "台東市",

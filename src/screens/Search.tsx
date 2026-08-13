@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BY_DEST, DESTINATIONS, POIS, REGIONS } from "../data";
 import { MapCredit, MapView, type MapPin } from "../components/MapView";
-import { Chip, Empty, Segmented, Thumb, TopBar } from "../components/ui";
+import { Chip, Empty, Segmented, StoryBadge, Thumb, TopBar } from "../components/ui";
 import { track } from "../lib/track";
 import { useNav } from "../nav";
 import { POI_KIND_LABELS, type Poi } from "../types";
@@ -77,8 +77,14 @@ export function Search({ q }: { q: string }) {
      to follow the route rather than keep whatever was typed last time. */
   useEffect(() => setText(q), [q]);
 
+  /* One event per search, not one per keystroke. Firing on every change logged
+     台, 台南, 台南美 and 台南美食 as four separate searches, which is a count
+     nobody performed — and the event log is capped, so padding it with three
+     phantom rows evicts the affiliate events the business screen reads. */
   useEffect(() => {
-    if (query) track("search");
+    if (!query) return;
+    const t = window.setTimeout(() => track("search"), 600);
+    return () => window.clearTimeout(t);
   }, [query]);
 
   /* A city name is the most common thing anyone types, so it has to match the
@@ -269,11 +275,13 @@ function PoiRow({
     >
       <Thumb emoji={poi.emoji} tint={poi.tint} size={compact ? 44 : 52} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[14.5px] font-semibold text-ink">{poi.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[14.5px] font-semibold text-ink">{poi.name}</span>
+          {poi.storyId && <StoryBadge label={false} />}
+        </div>
         <div className="mt-0.5 truncate text-[12.5px] text-ink-3">
           {city ? `${city} · ` : ""}
           {poi.area} · {POI_KIND_LABELS[poi.kind]}
-          {poi.storyId && " · 🎧"}
         </div>
       </div>
       <span className="shrink-0 text-[15px] text-ink-3">›</span>

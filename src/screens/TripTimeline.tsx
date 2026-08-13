@@ -4,6 +4,7 @@ import { AFFILIATE_DISCLOSURE, BY_TRAVELLER, dealsForPoi, poi } from "../data";
 import { DealCard } from "../components/DealCard";
 import { dur } from "../lib/adapt";
 import { track } from "../lib/track";
+import { openDirections } from "../lib/maps";
 import { useNav } from "../nav";
 import {
   Avatar,
@@ -12,6 +13,7 @@ import {
   Note,
   Screen,
   Section,
+  StoryBadge,
   Thumb,
   TopBar,
 } from "../components/ui";
@@ -28,19 +30,26 @@ import {
 /* ------------------------------------------------------------- trip home */
 
 /**
- * The overview of one trip: who is coming, what is still missing, and the days.
+ * The overview of one trip: who is coming, the days, and then the two things
+ * the trip might still need.
  *
- * The two contextual cards — accommodation and tickets — appear only when the
- * trip actually lacks those things. That is the whole difference between a
- * reminder and an ad: a reminder can be finished, and once you have booked, it
- * stops talking to you.
+ * The days come first. Somebody opening their own itinerary came to look at the
+ * itinerary, and a screen that answers with two shopping blocks before the plan
+ * has decided that its own traveller is a lead.
+ *
+ * Both contextual cards appear only when the trip actually lacks the thing, and
+ * both state the fact rather than working the traveller: "這趟行程共 4 晚" is a
+ * fact they can act on or ignore; "還沒安排住宿，先訂起來比較安心" is a nudge with
+ * a deadline attached to somebody else's checkout. That is the whole difference
+ * between a reminder and an ad — and it is also why neither card wears the
+ * brand-orange fill that 加入行程 wears elsewhere in the app.
  */
 export function TripHome({ trip }: { trip: Trip }) {
   const nav = useNav();
   const tickets = ticketReminders(trip);
 
   useEffect(() => {
-    track("trip_view", { destId: trip.destId });
+    track("trip_view", { tripId: trip.id, destId: trip.destId });
   }, [trip.id, trip.destId]);
 
   return (
@@ -75,31 +84,45 @@ export function TripHome({ trip }: { trip: Trip }) {
         </button>
       )}
 
+      <Section title="每日行程">
+        <div className="space-y-3 px-5">
+          {trip.days.map((d) => (
+            <DayCard key={d.n} trip={trip} day={d} />
+          ))}
+        </div>
+      </Section>
+
       {trip.needsStay && (
-        <div className="mt-5 px-5">
+        <section className="mt-8 px-5">
           <div className="rounded-2xl bg-surface p-4">
-            <div className="text-[15px] font-semibold text-ink">還沒安排住宿</div>
+            <div className="text-[15px] font-semibold text-ink">住宿</div>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-              這趟 {trip.nights} 晚都還是空的，先訂起來比較安心。
+              這趟行程共 {trip.nights} 晚。要找住宿的話，從這裡開始。
             </p>
             <div className="mt-3.5">
               <Button
+                variant="onCard"
                 onClick={() => nav.go({ k: "stay", destId: trip.destId })}
                 full={false}
               >
-                找住宿
+                查看住宿
               </Button>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
       {tickets.deals.length > 0 && (
         <section className="mt-6">
           <div className="px-5">
-            <div className="text-[15px] font-semibold text-ink">還沒準備門票？</div>
+            <div className="text-[15px] font-semibold text-ink">門票</div>
+            {/* What is true — these places sell admission — and nothing about
+                what happens if you leave it. The card only exists because the
+                itinerary contains a venue that genuinely charges entry; that
+                fact is the reminder, and a deadline stapled to it would be a
+                sales line wearing a reminder's clothes. */}
             <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-              {tickets.names.join("、")} 需要買票入場，出發前先準備好。
+              {tickets.names.join("、")}需要購票入場。
             </p>
             <div className="mt-3 space-y-2">
               {tickets.deals.map((d) => (
@@ -110,14 +133,6 @@ export function TripHome({ trip }: { trip: Trip }) {
           <Note>{AFFILIATE_DISCLOSURE}</Note>
         </section>
       )}
-
-      <Section title="每日行程">
-        <div className="space-y-3 px-5">
-          {trip.days.map((d) => (
-            <DayCard key={d.n} trip={trip} day={d} />
-          ))}
-        </div>
-      </Section>
 
       <div className="h-24" />
     </Screen>
@@ -208,8 +223,10 @@ export function DayPlan({
   const nav = useNav();
   const d = trip.days.find((x) => x.n === day) ?? trip.days[0];
 
+  /* `day` is in the deps because the event is per-day even though the payload
+     has no field for it — walking Day 1 → Day 2 is two views, not one. */
   useEffect(() => {
-    track("day_view", {});
+    track("day_view", { tripId: trip.id });
   }, [trip.id, day]);
 
   if (!d) return null;
@@ -309,13 +326,38 @@ function Timeline({ stops }: { stops: Stop[] }) {
       {stops.map((s, i) => (
         <div key={s.id}>
           {i > 0 && s.from && (
-            <div className="py-2 pl-[52px] text-[12.5px] text-ink-3">
-              {LEG_LABEL[s.from.mode]} {s.from.min} 分鐘
-            </div>
+            <Leg from={stops[i - 1]} to={s} />
           )}
           <StopRow stop={s} onClick={() => nav.go({ k: "poi", id: s.poiId })} />
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The gap between two stops, and the one thing a traveller standing in it
+ * actually wants.
+ *
+ * ResoMap does not do turn-by-turn — the app for that is already on the phone
+ * and is better at it. So this shows the estimate the itinerary was planned
+ * against and hands off. It does not ask which mode: the itinerary already says
+ * 步行, and asking again would be the app forgetting its own plan.
+ */
+function Leg({ from, to }: { from: Stop; to: Stop }) {
+  if (!to.from) return null;
+  const mode = to.from.mode;
+  return (
+    <div className="flex items-center gap-2 py-1.5 pl-[52px] pr-1">
+      <span className="text-[12.5px] text-ink-3">
+        {LEG_LABEL[mode]}約 {to.from.min} 分鐘
+      </span>
+      <button
+        onClick={() => openDirections(poi(from.poiId), poi(to.poiId), mode)}
+        className="-my-1 ml-auto inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-[12.5px] font-bold text-brand active:bg-brand-wash"
+      >
+        怎麼走
+      </button>
     </div>
   );
 }
@@ -329,6 +371,9 @@ function StopRow({ stop, onClick }: { stop: Stop; onClick: () => void }) {
       <div className="min-w-0 flex-1 pt-0.5">
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[15.5px] font-semibold text-ink">{p.name}</span>
+          {/* Where the badge matters most: the place you are walking to turns
+              out to have something to listen to on the way. */}
+          {p.storyId && <StoryBadge label={false} />}
           {stop.meal && (
             <span className="shrink-0 text-[12px] text-ink-3">
               {stop.meal === "lunch" ? "午餐" : "晚餐"}

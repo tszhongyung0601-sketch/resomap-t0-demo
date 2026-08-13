@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Deal, ServiceId, Trip } from "./types";
+import type { Deal, ServiceId, StoryLength, Trip } from "./types";
 
 /**
  * A route stack on top of the tabs. No router library: every flow in this app
@@ -18,6 +18,10 @@ export type Route =
   | { k: "consensus"; tripId: string }
   | { k: "alternatives"; tripId: string }
   | { k: "stay"; destId?: string }
+  | { k: "tickets"; destId?: string }
+  | { k: "product"; id: string }
+  | { k: "transport"; destId?: string }
+  | { k: "carrental"; destId?: string }
   | { k: "service"; id: ServiceId }
   | { k: "admin" }
   | { k: "demo" };
@@ -52,8 +56,12 @@ export interface Nav {
   openDeal: (d: Deal) => void;
   /** Open the "you have arrived" prompt for a POI with a story. */
   arrive: (poiId: string) => void;
-  /** Open the audio story directly (from a POI page's 試聽). */
-  play: (poiId: string) => void;
+  /**
+   * Open the audio story directly (from a POI page or the arrival sheet).
+   * `length` picks the edit: the 30 秒 one people play in a queue, or the full
+   * one. Defaults to the full edit when the caller has no opinion.
+   */
+  play: (poiId: string, length?: StoryLength) => void;
   /** Open the quick-add sheet for an itinerary day. */
   addTo: (tripId: string, day: number) => void;
   /** Open the 更多服務 sheet. */

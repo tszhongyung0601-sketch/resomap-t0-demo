@@ -48,6 +48,7 @@ export const POI_TW_NORTH: Poi[] = [
   },
   {
     id: "dadaocheng",
+    storyId: "st-dadaocheng",
     name: "大稻埕迪化街",
     destId: "taipei",
     area: "大同區",
@@ -160,6 +161,7 @@ export const POI_TW_NORTH: Poi[] = [
   },
   {
     id: "tamsui",
+    storyId: "st-tamsui",
     name: "淡水老街",
     destId: "newtaipei",
     area: "淡水區",
@@ -217,6 +219,7 @@ export const POI_TW_NORTH: Poi[] = [
   /* ------------------------------------------------------------- 台中 */
   {
     id: "opera-house",
+    storyId: "st-opera",
     name: "臺中國家歌劇院",
     destId: "taichung",
     area: "西屯區",

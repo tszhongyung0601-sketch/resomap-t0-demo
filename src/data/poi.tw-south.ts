@@ -187,6 +187,7 @@ export const POI_TW_SOUTH: Poi[] = [
   /* ---------------------------------------------------------- 高雄 */
   {
     id: "pier2",
+    storyId: "st-pier2",
     name: "駁二藝術特區",
     destId: "kaohsiung",
     area: "鹽埕區",

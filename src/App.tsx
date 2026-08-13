@@ -29,11 +29,18 @@ import { TripHome, DayPlan } from "./screens/TripTimeline";
 import { AddPoiSheet } from "./screens/AddPoi";
 import { Travellers, Consensus, Alternatives } from "./screens/Group";
 import { Deals } from "./screens/Deals";
-import { MoreServicesSheet, ServiceFlow, StayFlow } from "./screens/Services";
+import {
+  CarRentalFlow,
+  MoreServicesSheet,
+  ServiceFlow,
+  StayFlow,
+  TransportFlow,
+} from "./screens/Services";
+import { ProductDetail, Tickets } from "./screens/Tickets";
 import { Profile } from "./screens/Profile";
 import { AdminDemo } from "./screens/AdminDemo";
 import { DemoPanel } from "./screens/DemoPanel";
-import type { Deal, Trip } from "./types";
+import type { Deal, StoryLength, Trip } from "./types";
 
 /** The demo starts before anything has been booked. */
 const INITIAL: Trip[] = [
@@ -59,7 +66,7 @@ export default function App() {
   /* overlays — these sit above whatever screen is showing */
   const [deal, setDeal] = useState<Deal | null>(null);
   const [arrival, setArrival] = useState<string | null>(null);
-  const [story, setStory] = useState<string | null>(null);
+  const [story, setStory] = useState<{ poiId: string; length: StoryLength } | null>(null);
   const [adding, setAdding] = useState<{ tripId: string; day: number } | null>(null);
   const [services, setServices] = useState(false);
   const [aiSheet, setAiSheet] = useState(false);
@@ -97,7 +104,7 @@ export default function App() {
       },
       openDeal: (d) => setDeal(d),
       arrive: (poiId) => setArrival(poiId),
-      play: (poiId) => setStory(poiId),
+      play: (poiId, length = "full") => setStory({ poiId, length }),
       addTo: (tripId, day) => setAdding({ tripId, day }),
       moreServices: () => setServices(true),
 
@@ -279,6 +286,10 @@ export default function App() {
   else if (route?.k === "poi") screen = <Poi id={route.id} />;
   else if (route?.k === "create") screen = <CreateTrip destId={route.destId} />;
   else if (route?.k === "stay") screen = <StayFlow destId={route.destId} />;
+  else if (route?.k === "tickets") screen = <Tickets destId={route.destId} />;
+  else if (route?.k === "product") screen = <ProductDetail id={route.id} />;
+  else if (route?.k === "transport") screen = <TransportFlow destId={route.destId} />;
+  else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
   else if (route?.k === "admin") screen = <AdminDemo />;
   else if (route?.k === "travellers") screen = <Travellers tripId={route.tripId} />;
@@ -346,15 +357,21 @@ export default function App() {
       {arrival && !story && (
         <ArrivalSheet
           poiId={arrival}
-          onPlay={() => {
-            setStory(arrival);
+          onPlay={(length) => {
+            setStory({ poiId: arrival, length });
             setArrival(null);
           }}
           onLater={() => setArrival(null)}
         />
       )}
 
-      {story && <StoryPlayer poiId={story} onClose={() => setStory(null)} />}
+      {story && (
+        <StoryPlayer
+          poiId={story.poiId}
+          length={story.length}
+          onClose={() => setStory(null)}
+        />
+      )}
 
       <OutboundSheet deal={deal} onClose={() => setDeal(null)} />
 

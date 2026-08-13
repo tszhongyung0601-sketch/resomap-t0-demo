@@ -38,6 +38,7 @@ export const poisForDest = (destId: string) => POIS.filter((p) => p.destId === d
 export const poisWithStory = () => POIS.filter((p) => p.storyId);
 
 export * from "./affiliatePartners";
+export * from "./affiliateProducts";
 export * from "./destinations";
 export * from "./services";
 export * from "./stories";

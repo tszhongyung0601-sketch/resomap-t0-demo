@@ -61,7 +61,14 @@ export function Profile() {
         {/* 商家洽詢, not 商家合作 — ResoMap has no merchant agreements, and a
             menu row is not the place to imply one. */}
         <Row icon="🏪" label="商家洽詢" />
-        <Row icon="📊" label="營運數據" onClick={() => nav.go({ k: "admin" })} />
+        {/* Labelled Demo, kept last, styled like every other row: this is the
+            founder's slide, and a traveller who taps it should be able to tell
+            from the name that it is not part of their trip. */}
+        <Row
+          icon="📊"
+          label="Demo：商業模式"
+          onClick={() => nav.go({ k: "admin" })}
+        />
         <Row icon="🎬" label="Demo 情境" onClick={() => nav.go({ k: "demo" })} />
       </RowGroup>
 

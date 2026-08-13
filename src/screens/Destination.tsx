@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AFFILIATE_DISCLOSURE, BY_POI, dealsForDest, dest, poisForDest, story } from "../data";
 import { DealCard } from "../components/DealCard";
-import { Button, Empty, Note, Screen, Section, Tabs, Thumb } from "../components/ui";
+import { Button, Empty, Note, Screen, Section, StoryBadge, Tabs, Thumb } from "../components/ui";
 import { track } from "../lib/track";
 import { useNav } from "../nav";
 import {
@@ -127,12 +127,12 @@ function Body({ d }: { d: DestinationRecord }) {
         >
           ‹
         </button>
-        <button
-          onClick={() => nav.tab("map")}
-          className="absolute right-4 top-4 h-11 rounded-full bg-bg/90 px-4 text-[13.5px] font-semibold text-ink active:bg-bg"
-        >
-          地圖
-        </button>
+        {/* There was a 地圖 button here. It called nav.tab("map"), and the map
+            tab is framed on the traveller's own trip — so from 台南 it opened a
+            map of 花蓮, and switching tabs cleared the stack so 返回 could not
+            undo it. A button that goes to the wrong city is worse than no
+            button; it comes back when there is a destination-scoped map route
+            to send it to. */}
       </div>
 
       <div className="px-5 pb-4 pt-5">
@@ -183,7 +183,13 @@ function Body({ d }: { d: DestinationRecord }) {
             >
               <div className="px-5">
                 {stories.slice(0, 3).map((p) => (
-                  <PoiRow key={p.id} poi={p} sub={storySub(p)} onClick={() => openPoi(p)} />
+                  <PoiRow
+                    key={p.id}
+                    poi={p}
+                    sub={subFor(p)}
+                    storyLabel
+                    onClick={() => openPoi(p)}
+                  />
                 ))}
               </div>
             </Section>
@@ -254,7 +260,8 @@ function Body({ d }: { d: DestinationRecord }) {
       {tab === "story" && (
         <List
           items={stories}
-          sub={storySub}
+          sub={subFor}
+          storyLabel
           onPick={openPoi}
           empty="這裡的語音故事還在錄製中"
           icon="🎧"
@@ -283,12 +290,14 @@ function Body({ d }: { d: DestinationRecord }) {
 function List({
   items,
   sub,
+  storyLabel,
   onPick,
   empty,
   icon,
 }: {
   items: Poi[];
   sub: (p: Poi) => string;
+  storyLabel?: boolean;
   onPick: (p: Poi) => void;
   empty: string;
   icon: string;
@@ -297,7 +306,13 @@ function List({
   return (
     <div className="px-5 pt-3">
       {items.map((p) => (
-        <PoiRow key={p.id} poi={p} sub={sub(p)} onClick={() => onPick(p)} />
+        <PoiRow
+          key={p.id}
+          poi={p}
+          sub={sub(p)}
+          storyLabel={storyLabel}
+          onClick={() => onPick(p)}
+        />
       ))}
     </div>
   );
@@ -306,12 +321,18 @@ function List({
 function PoiRow({
   poi,
   sub,
+  storyLabel,
   onClick,
 }: {
   poi: Poi;
   sub: string;
+  /** On the story list the badge carries the length; elsewhere it is just the
+      mark, so a 景點 row is not retitled by it. */
+  storyLabel?: boolean;
   onClick: () => void;
 }) {
+  const minutes =
+    storyLabel && poi.storyId ? story(poi.storyId)?.minutes : undefined;
   return (
     <button
       onClick={onClick}
@@ -319,7 +340,12 @@ function PoiRow({
     >
       <Thumb emoji={poi.emoji} tint={poi.tint} size={52} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-semibold text-ink">{poi.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[15px] font-semibold text-ink">{poi.name}</span>
+          {poi.storyId && (
+            <StoryBadge minutes={minutes} label={Boolean(storyLabel)} />
+          )}
+        </div>
         <div className="mt-0.5 truncate text-[12.5px] text-ink-3">{sub}</div>
       </div>
       <span className="shrink-0 text-[15px] text-ink-3">›</span>
@@ -329,9 +355,4 @@ function PoiRow({
 
 function subFor(p: Poi) {
   return `${p.area} · ${POI_KIND_LABELS[p.kind]}`;
-}
-
-function storySub(p: Poi) {
-  const minutes = story(p.storyId)?.minutes;
-  return `🎧 ${minutes ? `${minutes} 分鐘語音` : "語音故事"} · ${p.area}`;
 }

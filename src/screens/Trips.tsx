@@ -1,6 +1,6 @@
 import { poi } from "../data";
 import { useNav } from "../nav";
-import { Button, Card, Empty, Screen, Thumb, TopBar } from "../components/ui";
+import { Button, Card, Empty, Screen, StoryBadge, Thumb, TopBar } from "../components/ui";
 import type { Trip } from "../types";
 
 /**
@@ -54,6 +54,7 @@ function TripRow({ trip }: { trip: Trip }) {
     <Card onClick={() => nav.go({ k: "trip", id: trip.id })} className="p-4">
       <div className="flex items-center gap-2">
         <span className="truncate text-[16px] font-bold text-ink">{trip.title}</span>
+        {hasStory(trip) && <StoryBadge label={false} />}
         <span
           className={`ml-auto shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${
             phase.live ? "bg-brand-wash text-brand" : "bg-surface-2 text-ink-3"
@@ -74,6 +75,16 @@ function TripRow({ trip }: { trip: Trip }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * One badge per trip, not one per place: the row is answering "which trip?", and
+ * the itinerary itself is where the individual stops earn their own mark.
+ */
+function hasStory(trip: Trip): boolean {
+  return trip.days.some((d) =>
+    d.tracks.some((t) => t.stops.some((s) => Boolean(poi(s.poiId).storyId))),
   );
 }
 

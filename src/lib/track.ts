@@ -79,7 +79,18 @@ export interface Funnel {
   gmvTwd: number;
   /** Simulated commission at the indicative rates above, TWD. */
   commissionTwd: number;
-  byPartner: { partner: PartnerId; clicks: number; commissionTwd: number }[];
+  /**
+   * The whole funnel per platform, not just clicks. The business screen has to
+   * be able to answer "which platform actually converts", and a list of click
+   * counts cannot — Booking can out-click Klook and still book nothing.
+   */
+  byPartner: {
+    partner: PartnerId;
+    clicks: number;
+    outbound: number;
+    bookings: number;
+    commissionTwd: number;
+  }[];
   byCategory: { category: DealCategory; clicks: number; commissionTwd: number }[];
   byDest: { destId: string; clicks: number }[];
 }
@@ -92,11 +103,26 @@ export interface Funnel {
 export const ctr = (f: Funnel) =>
   f.impressions ? Math.min(1, f.clicks / f.impressions) : 0;
 
+interface PartnerTally {
+  clicks: number;
+  outbound: number;
+  bookings: number;
+  commissionTwd: number;
+}
+
 export function funnel(): Funnel {
   const list = read();
-  const partners = new Map<PartnerId, { clicks: number; commissionTwd: number }>();
+  const partners = new Map<PartnerId, PartnerTally>();
   const cats = new Map<DealCategory, { clicks: number; commissionTwd: number }>();
   const dests = new Map<string, number>();
+
+  /* Get-or-create, so a partner enters the table on whichever event reaches it
+     first. A platform seen only as an outbound must still get a row. */
+  const tally = (id: PartnerId): PartnerTally => {
+    const p = partners.get(id) ?? { clicks: 0, outbound: 0, bookings: 0, commissionTwd: 0 };
+    partners.set(id, p);
+    return p;
+  };
 
   const f: Funnel = {
     impressions: 0,
@@ -112,15 +138,15 @@ export function funnel(): Funnel {
 
   for (const e of list) {
     if (e.name === "affiliate_impression") f.impressions++;
-    if (e.name === "affiliate_outbound") f.outbound++;
+
+    if (e.name === "affiliate_outbound") {
+      f.outbound++;
+      if (e.partner) tally(e.partner).outbound++;
+    }
 
     if (e.name === "affiliate_click") {
       f.clicks++;
-      if (e.partner) {
-        const p = partners.get(e.partner) ?? { clicks: 0, commissionTwd: 0 };
-        p.clicks++;
-        partners.set(e.partner, p);
-      }
+      if (e.partner) tally(e.partner).clicks++;
       if (e.category) {
         const c = cats.get(e.category) ?? { clicks: 0, commissionTwd: 0 };
         c.clicks++;
@@ -136,9 +162,9 @@ export function funnel(): Funnel {
       f.gmvTwd += value;
       f.commissionTwd += commission;
       if (e.partner) {
-        const p = partners.get(e.partner) ?? { clicks: 0, commissionTwd: 0 };
+        const p = tally(e.partner);
+        p.bookings++;
         p.commissionTwd += commission;
-        partners.set(e.partner, p);
       }
       if (e.category) {
         const c = cats.get(e.category) ?? { clicks: 0, commissionTwd: 0 };
@@ -154,7 +180,7 @@ export function funnel(): Funnel {
     .map(([destId, clicks]) => ({ destId, clicks }))
     .sort((a, b) => b.clicks - a.clicks);
 
-  f.byPartner.sort((a, b) => b.clicks - a.clicks);
+  f.byPartner.sort((a, b) => b.clicks - a.clicks || b.commissionTwd - a.commissionTwd);
   f.byCategory.sort((a, b) => b.clicks - a.clicks);
   return f;
 }

@@ -429,3 +429,47 @@ export function Note({ children }: { children: ReactNode }) {
     <p className="px-5 py-4 text-[11.5px] leading-relaxed text-ink-3">{children}</p>
   );
 }
+
+/**
+ * The mark for a place ResoMap has recorded a story about.
+ *
+ * It appears on every surface a POI can appear on — explore, map, search,
+ * itinerary — because its job is recognition: after seeing it twice, a
+ * traveller knows what it means without being told. Which is also why it stays
+ * quiet. Only a minority of places have a story, and that scarcity is what
+ * makes the mark worth anything; dressed up in brand orange it would read as
+ * an advert and appear to be on everything.
+ */
+export function StoryBadge({
+  minutes,
+  label = true,
+}: {
+  minutes?: number;
+  /** Off in dense rows where the headphone alone carries it. */
+  label?: boolean;
+}) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-ink-3">
+      <Headphones />
+      {label && <span>{minutes ? `${minutes} 分鐘故事` : "有語音故事"}</span>}
+    </span>
+  );
+}
+
+export function Headphones({ size = 12 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      aria-hidden
+    >
+      <path d="M4 14v-2a8 8 0 0116 0v2" strokeLinecap="round" />
+      <rect x="2.4" y="13.4" width="4.6" height="7.2" rx="2.3" fill="currentColor" stroke="none" />
+      <rect x="17" y="13.4" width="4.6" height="7.2" rx="2.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AFFILIATE_DISCLOSURE, POIS, dealsForPoi, poi } from "../data";
 import { story } from "../data/stories";
 import { DealCard } from "../components/DealCard";
-import { Button, Note, Screen, Section, Thumb } from "../components/ui";
+import { Button, Headphones, Note, Screen, Section, StoryBadge, Thumb } from "../components/ui";
 import { distance, km } from "../lib/geo";
 import { dur } from "../lib/adapt";
+import { openDirections } from "../lib/maps";
 import { track } from "../lib/track";
 import { useNav } from "../nav";
 import { POI_KIND_LABELS } from "../types";
@@ -12,10 +13,13 @@ import { POI_KIND_LABELS } from "../types";
 /**
  * One place, one decision: put it in the itinerary.
  *
- * Everything else on the page is deliberately quieter than that. The audio
- * story, the walk over, the ticket — each is worth a tap once you have decided
- * to go, and none of them is worth competing with the only button that changes
- * your trip.
+ * Everything below that reads in a fixed order — story, then walking there,
+ * then the ticket — and each step down that list is quieter than the one above
+ * it. The story is the thing only ResoMap has, so it sits directly under the
+ * description with both edits on offer; the ticket is a link to somebody else's
+ * checkout, so it is a compact row a long way further down. Selling louder than
+ * that would mean out-shouting 加入行程, which is the only tap on this page that
+ * changes the traveller's trip.
  *
  * The ticket block is gated on `ticketed` AND on the record actually being a
  * ticket — not on "are there deals attached to this place". A free temple that
@@ -31,7 +35,6 @@ export function Poi({ id }: { id: string }) {
   const p = poi(id);
 
   const [saved, setSaved] = useState(false);
-  const [navHint, setNavHint] = useState(false);
 
   useEffect(() => {
     track("poi_view", { poiId: id });
@@ -115,46 +118,65 @@ export function Poi({ id }: { id: string }) {
         {p.about && (
           <p className="mt-4 text-[14.5px] leading-relaxed text-ink-2">{p.about}</p>
         )}
-      </div>
 
-      {/* Gated on the story, not on the id: a 試聽 button that opens an empty
-          player is worse than no button. */}
-      {st && (
-        <div className="px-5 pt-5">
-          <button
-            onClick={() => nav.play(id)}
-            className="flex w-full items-center gap-3 rounded-2xl bg-surface p-4 text-left active:bg-surface-2"
-          >
-            <span className="text-[22px]">🎧</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14.5px] font-semibold text-ink">聽這裡的故事</div>
-              <div className="num mt-0.5 truncate text-[12.5px] text-ink-3">
-                {st.minutes} 分鐘 · {st.narrator}
+        {/* Gated on the story, not on the id: a 試聽 button that opens an empty
+            player is worse than no button.
+
+            Two buttons rather than one because the choice is real. Thirty
+            seconds is what somebody standing in a queue will actually play;
+            three minutes is what they choose once the place has earned it.
+            Making them pick inside the player, after committing, is how the
+            long edit gets abandoned at sentence two. */}
+        {st && (
+          <div className="mt-5 rounded-2xl bg-surface p-4">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 text-[22px] leading-none">🎧</span>
+              <div className="min-w-0 flex-1">
+                {/* The title already ends with the hook — "赤崁樓・荷蘭人蓋的，
+                    鄭成功接手的" — so printing both says the same thing twice.
+                    The hook earns its place on cards that have no room for a
+                    title; here the title is the better line. */}
+                <div className="text-[15px] font-bold leading-snug text-ink">
+                  {st.title}
+                </div>
+                <div className="mt-1.5 truncate text-[12.5px] text-ink-3">
+                  {st.narrator}
+                </div>
               </div>
             </div>
-            <span className="shrink-0 rounded-full bg-bg px-4 py-2 text-[12.5px] font-bold text-ink">
-              試聽
-            </span>
-          </button>
-        </div>
-      )}
+            <div className="mt-3.5 flex gap-2">
+              <button
+                onClick={() => nav.play(id, "short")}
+                className="num inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-bg px-3 text-[14px] font-bold text-ink active:bg-surface-2"
+              >
+                30 秒
+              </button>
+              <button
+                onClick={() => nav.play(id, "full")}
+                className="num inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-bg px-3 text-[14px] font-bold text-ink active:bg-surface-2"
+              >
+                <Headphones size={13} />聽 {st.minutes} 分鐘
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* One secondary action. 收藏 already lives on the heart in the hero;
-          shipping both meant two controls, one state, and a toggle that
-          appeared to change on its own. */}
+      {/* Genuinely hands off to the phone's map app. ResoMap owns the plan;
+          turn-by-turn is a product that already exists and is better. */}
       <div className="px-5 pt-5">
-        <Button variant="secondary" onClick={() => setNavHint(true)}>
+        <Button variant="secondary" onClick={() => openDirections(null, p, "walk")}>
           導航
         </Button>
       </div>
 
-      {navHint && <Note>Demo 版本不會開啟導航。正式版會交給手機上的地圖 App。</Note>}
-
+      {/* Compact on purpose. This is a link to somebody else's checkout, and it
+          sits below both the story and 導航 in every dimension it can. */}
       {tickets.length > 0 && (
-        <Section title="需要門票？" tight>
+        <Section title="門票" tight>
           <div className="space-y-2 px-5">
             {tickets.map((d) => (
-              <DealCard key={d.id} deal={d} onOpen={nav.openDeal} />
+              <DealCard key={d.id} deal={d} onOpen={nav.openDeal} compact />
             ))}
           </div>
         </Section>
@@ -164,7 +186,7 @@ export function Poi({ id }: { id: string }) {
         <Section title="在地優惠" tight>
           <div className="space-y-2 px-5">
             {localOffers.map((d) => (
-              <DealCard key={d.id} deal={d} onOpen={nav.openDeal} />
+              <DealCard key={d.id} deal={d} onOpen={nav.openDeal} compact />
             ))}
           </div>
         </Section>
@@ -185,8 +207,13 @@ export function Poi({ id }: { id: string }) {
               >
                 <Thumb emoji={place.emoji} tint={place.tint} size={48} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14.5px] font-semibold text-ink">
-                    {place.name}
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[14.5px] font-semibold text-ink">
+                      {place.name}
+                    </span>
+                    {/* The headphone alone in a dense row — the label would be
+                        longer than the place name it sits next to. */}
+                    {place.storyId && <StoryBadge label={false} />}
                   </div>
                   <div className="mt-0.5 truncate text-[12.5px] text-ink-3">
                     {place.area} · {POI_KIND_LABELS[place.kind]}

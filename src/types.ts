@@ -120,17 +120,30 @@ export interface Poi {
 
 /* --------------------------------------------------------------- stories */
 
+export type StoryLength = "short" | "full";
+
 export interface Story {
   id: string;
   poiId: string;
   title: string;
-  minutes: number;
+  /** One line on a card, before anybody commits three minutes. */
+  hook: string;
   /** Who recorded it. ResoMap's guides are made by people, and it says so. */
   narrator: string;
   plays: number;
   likes: number;
-  /** Split on "|": one utterance per sentence keeps the progress bar honest. */
+  /**
+   * Two edits of the same story. 30 秒 is the one people actually play while
+   * standing in a queue; 3 分鐘 is for when the place turns out to be worth it.
+   * Both are sentences joined by "|" — one utterance per sentence, because
+   * Chrome truncates long speech and `onboundary` is unreliable for Chinese.
+   */
+  short: string;
   body: string;
+  /** Minutes shown against the full edit. The short one is always ~30 秒. */
+  minutes: number;
+  /** What the guide has been recorded in. Demo: only 中文 actually speaks. */
+  languages: string[];
 }
 
 /* ----------------------------------------------------------------- deals */
@@ -173,6 +186,39 @@ export interface Deal {
   sponsored?: boolean;
   /** Local merchant supply that does not exist yet. Shown, never bookable. */
   comingLater?: boolean;
+  /**
+   * Why this is being shown, in the traveller's terms — "你已加入迪士尼",
+   * "與 Day 2 行程相關". A recommendation that cannot say why it is here is
+   * indistinguishable from an advert, and gets treated like one.
+   */
+  reason?: string;
+}
+
+/* ------------------------------------------------- tickets & experiences */
+
+export type ProductCategory = "attraction" | "themepark" | "exhibition" | "experience" | "daytour";
+
+export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
+  attraction: "景點門票",
+  themepark: "樂園",
+  exhibition: "展覽",
+  experience: "體驗",
+  daytour: "一日遊",
+};
+
+/** One bookable thing, with what each platform indicatively charges for it. */
+export interface AffiliateProduct {
+  id: string;
+  name: string;
+  blurb: string;
+  category: ProductCategory;
+  destId: string;
+  poiId?: string;
+  emoji: string;
+  tint: string;
+  /** Indicative figures for comparison only. Never presented as a live quote. */
+  offers: { partner: PartnerId; priceTwd: number }[];
+  popular?: boolean;
 }
 
 /* -------------------------------------------------------------- services */
@@ -182,10 +228,9 @@ export type ServiceId =
   | "tickets"
   | "stay"
   | "transport"
+  | "carrental"
   | "more"
   | "flight"
-  | "car"
-  | "airport"
   | "esim"
   | "insurance"
   | "coupon"
@@ -374,7 +419,9 @@ export type EventName =
   | "affiliate_impression"
   | "affiliate_click"
   | "affiliate_outbound"
-  | "mock_booking";
+  | "mock_booking"
+  | "story_open"
+  | "directions_open";
 
 export interface TrackedEvent {
   name: EventName;
@@ -384,6 +431,9 @@ export interface TrackedEvent {
   destId?: string;
   dealId?: string;
   poiId?: string;
+  /** Which product the event was about, when it was about one. */
+  productId?: string;
+  tripId?: string;
   /** Indicative value of a simulated booking, in TWD. */
   valueTwd?: number;
 }

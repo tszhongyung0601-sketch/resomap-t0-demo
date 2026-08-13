@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { MapCredit, MapView, type MapPin } from "../components/MapView";
-import { Button, Card, Chip, Sheet, Tag, Thumb } from "../components/ui";
+import { Button, Card, Chip, Sheet, StoryBadge, Tag, Thumb } from "../components/ui";
 import { DEALS, POIS, TW_DESTINATIONS, dest, poisForDest } from "../data";
 import { distance, km } from "../lib/geo";
 import { useNav } from "../nav";
@@ -152,7 +152,6 @@ export function MapTab({ destId }: { destId: string | null }) {
         activeId={activeId}
         onPick={(p) => setActiveId(p.id)}
       />
-      <MapCredit />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 px-4 pt-4">
         <button
@@ -214,16 +213,30 @@ export function MapTab({ destId }: { destId: string | null }) {
               <div className="flex items-center gap-3">
                 <Thumb emoji={active.emoji} tint={active.tint} size={52} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-semibold text-ink">
-                    {active.name}
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[15px] font-semibold text-ink">
+                      {active.name}
+                    </span>
+                    {active.storyId && <StoryBadge label={false} />}
                   </div>
                   <div className="mt-0.5 text-[12.5px] text-ink-3">
                     {[active.area, away(active)].filter(Boolean).join(" · ")}
                   </div>
                 </div>
               </div>
+              {/* `onCard`, not `primary`. The floating AI button is already a
+                  filled orange pill sitting over the bottom of this panel; a
+                  second full-width orange button 60px from it makes the map
+                  read as two competing calls to action instead of one place
+                  you tapped. On a bg-surface Card the page-white fill is the
+                  variant that stays visible without shouting. */}
               <div className="mt-3.5">
-                <Button onClick={() => nav.go({ k: "poi", id: active.id })}>查看</Button>
+                <Button
+                  variant="onCard"
+                  onClick={() => nav.go({ k: "poi", id: active.id })}
+                >
+                  查看
+                </Button>
               </div>
             </Card>
           </div>
@@ -249,10 +262,11 @@ export function MapTab({ destId }: { destId: string | null }) {
                     <span className="truncate text-[14px] font-semibold text-ink">
                       {p.name}
                     </span>
+                    {p.storyId && <StoryBadge label={false} />}
                     {p.id === paidId && <Tag kind="sponsored" />}
                   </div>
                   <div className="mt-0.5 truncate text-[12px] text-ink-3">
-                    {[p.area, away(p), p.storyId && "🎧"].filter(Boolean).join(" · ")}
+                    {[p.area, away(p)].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <span className="shrink-0 text-ink-3">›</span>
@@ -260,6 +274,13 @@ export function MapTab({ destId }: { destId: string | null }) {
             ))}
           </div>
         )}
+
+        {/* Inside the panel, not over the map. The tile licence requires the
+            attribution to be visible, and at z-10 under this z-20 sheet it was
+            not: the sheet is pinned to the same bottom edge and covers it
+            completely. Here it lands in the panel's own bottom padding — the
+            same place the search map puts it. */}
+        <MapCredit />
       </div>
 
       <Sheet open={more} onClose={() => setMore(false)} title="更多篩選">

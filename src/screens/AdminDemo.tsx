@@ -1,19 +1,55 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { useNav } from "../nav";
-import { Button, Empty, Note, Screen, Section, TopBar } from "../components/ui";
+import { Button, Empty, Note, Screen, Tag, TopBar } from "../components/ui";
 import { clearEvents, ctr, funnel } from "../lib/track";
 import { dest } from "../data/destinations";
 import { partner } from "../data/affiliatePartners";
 import { DEAL_CATEGORY_LABELS } from "../types";
 
 /**
- * The business screen. Not in the tab bar — it is reached from 我的 > 營運數據,
- * because it answers a question the boss has and the traveller does not.
+ * The business screen. Not in the tab bar — it is reached from 我的 >
+ * Demo：商業模式, because it answers a question the boss has and the traveller
+ * does not.
  *
  * Every number here comes from clicks made on this device during the demo, so
  * the screen leads with that and repeats it at the bottom. It is the one screen
- * where being mistaken for real data would actually matter.
+ * where being mistaken for real data would actually matter, and the only one
+ * allowed to print a click-through rate or a commission at all.
  */
+
+/** The two ways the product can earn, as the pitch tells it. */
+const MODELS: {
+  tag: string;
+  title: string;
+  line: string;
+  chain: string[];
+  /** One quiet line, on the model that carries the thesis. */
+  key?: string;
+}[] = [
+  {
+    tag: "MODEL A",
+    title: "首頁服務入口",
+    line: "門票、住宿、交通、租車固定放在首頁，用流量換交易。誰打開 App 看到的都是同一組入口。",
+    chain: ["首頁", "住宿", "Booking / Agoda", "Outbound", "分潤"],
+  },
+  {
+    tag: "MODEL B",
+    title: "行程情境變現",
+    line: "ResoMap 知道你要去哪座城市、哪一天、會經過哪些景點，也就知道你接下來會需要什麼。入口出現在行程的那個節點上，而不是首頁。",
+    chain: [
+      "探索",
+      "建立東京旅行",
+      "加入迪士尼",
+      "查看票券",
+      "Klook / KKday",
+      "Outbound",
+      "分潤",
+    ],
+    key: "撐得起分潤的是這一條。",
+  },
+];
+
 export function AdminDemo() {
   const nav = useNav();
   /* localStorage is outside React, so the funnel is read once on mount and
@@ -52,6 +88,12 @@ export function AdminDemo() {
         — 以下數字來自這台裝置的模擬點擊，不是真實營收。
       </div>
 
+      {/* Body text, not a pull quote. It is the answer to "why would this earn
+          anything", and it has to read as the product's own reasoning. */}
+      <p className="px-5 pt-4 text-[14px] leading-relaxed text-ink-2">
+        ResoMap 的聯盟分潤不是靠大量廣告曝光，而是在旅行需求發生時提供可完成交易的服務入口。
+      </p>
+
       {!hasData ? (
         <Empty
           icon="📊"
@@ -61,7 +103,7 @@ export function AdminDemo() {
         />
       ) : (
         <>
-          <Section title="漏斗">
+          <Panel title="漏斗">
             <div className="space-y-5">
               {steps.map((s) => (
                 <div key={s.label} className="px-5">
@@ -85,10 +127,10 @@ export function AdminDemo() {
             <p className="num px-5 pt-5 text-[13.5px] text-ink-2">
               點擊率 {Math.round(ctr(f) * 100)}%
             </p>
-          </Section>
+          </Panel>
 
           {f.byDest.length > 0 && (
-            <Section title="點擊來自哪些目的地">
+            <Panel title="點擊來自哪些目的地">
               {f.byDest.slice(0, 5).map((d) => (
                 <StatRow
                   key={d.destId}
@@ -96,11 +138,11 @@ export function AdminDemo() {
                   value={`${d.clicks} 次`}
                 />
               ))}
-            </Section>
+            </Panel>
           )}
 
           {f.byCategory.length > 0 && (
-            <Section title="點擊來自哪些類別">
+            <Panel title="點擊來自哪些類別">
               {f.byCategory.slice(0, 6).map((c) => (
                 <StatRow
                   key={c.category}
@@ -108,21 +150,59 @@ export function AdminDemo() {
                   value={`${c.clicks} 次`}
                 />
               ))}
-            </Section>
-          )}
-
-          {f.byPartner.length > 0 && (
-            <Section title="點擊去了哪些平台">
-              {f.byPartner.map((p) => (
-                <StatRow
-                  key={p.partner}
-                  label={partner(p.partner).name}
-                  value={`${p.clicks} 次 · ${nt(p.commissionTwd)}`}
-                />
-              ))}
-            </Section>
+            </Panel>
           )}
         </>
+      )}
+
+      {/* Shown with or without events: it is the model, not a measurement. */}
+      <Panel title="兩種變現路徑">
+        <div className="space-y-3 px-5">
+          {MODELS.map((m) => (
+            <div key={m.tag} className="rounded-2xl bg-surface p-4">
+              <div className="text-[11px] font-bold tracking-wide text-ink-3">
+                {m.tag}
+              </div>
+              <div className="mt-0.5 text-[15px] font-bold text-ink">{m.title}</div>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{m.line}</p>
+              {/* Joined rather than mapped: the chain has to wrap mid-sequence on
+                  a 393px screen, and separate nodes fight the line breaks. */}
+              <p className="mt-2.5 text-[12px] leading-relaxed text-ink-2">
+                {m.chain.join(" › ")}
+              </p>
+              {m.key && (
+                <p className="mt-2 text-[12px] text-ink-3">{m.key}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      {f.byPartner.length > 0 && (
+        <Panel title="各平台表現">
+          <div className="px-5">
+            <div className="flex items-baseline gap-2 pb-2 text-[10.5px] text-ink-3">
+              <span className="min-w-0 flex-1">平台</span>
+              <span className="w-11 shrink-0 text-right">點擊</span>
+              <span className="w-11 shrink-0 text-right">前往</span>
+              <span className="w-11 shrink-0 text-right">模擬預訂</span>
+              <span className="w-20 shrink-0 text-right">模擬佣金</span>
+            </div>
+            {f.byPartner.map((p) => (
+              <div key={p.partner} className="flex items-baseline gap-2 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-[14px] text-ink">
+                  {partner(p.partner).name}
+                </span>
+                <Figure>{p.clicks}</Figure>
+                <Figure>{p.outbound}</Figure>
+                <Figure>{p.bookings}</Figure>
+                <span className="num w-20 shrink-0 text-right text-[12.5px] font-semibold text-ink-2">
+                  {nt(p.commissionTwd)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Panel>
       )}
 
       {/* Offering to clear an empty store is a button that cannot do anything. */}
@@ -147,6 +227,33 @@ export function AdminDemo() {
       </Note>
       <div className="h-24" />
     </Screen>
+  );
+}
+
+/**
+ * A section head that carries the Demo 資料 mark.
+ *
+ * Every block on this screen is either a simulated count or an illustration of
+ * one, and the banner at the top scrolls away long before the reader reaches
+ * 各平台表現 — so the label repeats per section rather than once per screen.
+ */
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex items-baseline gap-2 px-5">
+        <h2 className="text-[17px] font-bold text-ink">{title}</h2>
+        <Tag kind="demo" />
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Figure({ children }: { children: ReactNode }) {
+  return (
+    <span className="num w-11 shrink-0 text-right text-[13.5px] font-semibold text-ink-2">
+      {children}
+    </span>
   );
 }
 
