@@ -16,7 +16,10 @@ export const ROOM: Room = {
   id: "room-tainan",
   destId: "tainan",
   title: "台南週末旅行",
-  dates: "8/23 - 8/24",
+  /* Must match ROOM_TRIP in data/trips.ts — this is the trip 接受 AI 建議
+     produces, and a room advertising one weekend that hands you another is the
+     seam the whole feature is judged on. */
+  dates: "8/28 - 8/30",
   members: [
     {
       id: "mickey",

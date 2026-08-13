@@ -472,7 +472,37 @@ export const TOKYO_TRIP: Trip = {
   ],
 };
 
-export const TRIPS: Trip[] = [TAINAN_TRIP, HUALIEN_TRIP, TOKYO_TRIP];
+/* --------------------------------------------- 台南・一起規劃的那一趟 */
+
+/**
+ * What 一起規劃 hands you when the group accepts the AI's plan.
+ *
+ * The same itinerary as TAINAN_TRIP, because that is the plan the room voted
+ * on — but it is not the same trip. Accepting used to adopt TAINAN_TRIP itself,
+ * which is `phase: "ongoing", today: 2`: four people agreed on a weekend in late
+ * August and landed on a trip that started last Wednesday and was already half
+ * over, with 8/12 - 8/14 in the header they had just seen dated 8/28 - 8/30.
+ *
+ * So the room gets its own trip, carrying the room's name and the room's
+ * weekend, and it has not departed. The dates here and in data/room.ts are the
+ * one thing that must stay in step.
+ */
+export const ROOM_TRIP: Trip = {
+  ...TAINAN_TRIP,
+  id: "trip-tainan-room",
+  title: "台南週末旅行",
+  dates: "8/28 - 8/30",
+  phase: "upcoming",
+  daysUntil: 15,
+  today: 1,
+  days: TAINAN_TRIP.days.map((d, i) => ({
+    ...d,
+    date: `8 月 ${28 + i} 日`,
+    weekday: ["星期五", "星期六", "星期日"][i] ?? d.weekday,
+  })),
+};
+
+export const TRIPS: Trip[] = [TAINAN_TRIP, HUALIEN_TRIP, TOKYO_TRIP, ROOM_TRIP];
 
 export const BY_TRIP: Record<string, Trip> = Object.fromEntries(
   TRIPS.map((t) => [t.id, t]),

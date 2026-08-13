@@ -26,7 +26,10 @@ import { Avatar, Button, Chip, Row, Screen, Section, Tag, TopBar } from "../comp
 const INVITE_LINK = "resomap.app/r/tainan-weekend";
 
 /** The trip the accepted suggestion lands on — the one already in the data. */
-const TAINAN_TRIP = "trip-tainan";
+/* The room's own trip, not the ongoing demo one — see ROOM_TRIP in
+   data/trips.ts for why accepting must not drop you into a trip that started
+   last week. */
+const ROOM_TRIP_ID = "trip-tainan-room";
 
 const PACES: Pace[] = ["easy", "normal", "packed"];
 const BUDGETS: { id: Preference["budget"]; label: string }[] = [
@@ -448,12 +451,12 @@ export function ConsensusView() {
   }, []);
 
   const accept = () => {
-    track("consensus_accept", { tripId: TAINAN_TRIP });
+    track("consensus_accept", { tripId: ROOM_TRIP_ID });
     /* adoptTrip, not go: the itinerary the group just agreed to has to exist in
        live state before it can be opened. Navigating straight to its id landed
        on a blank screen — at the exact moment the feature is supposed to pay
        off. */
-    nav.adoptTrip(TAINAN_TRIP);
+    nav.adoptTrip(ROOM_TRIP_ID);
   };
 
   const s = c.suggestion;

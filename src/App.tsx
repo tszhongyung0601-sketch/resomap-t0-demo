@@ -7,6 +7,7 @@ import { Button, Sheet, Tag, Thumb } from "./components/ui";
 import {
   ADAPTS,
   HUALIEN_TRIP,
+  ROOM_TRIP,
   TAINAN_TRIP,
   TOKYO_TRIP,
   dest,
@@ -142,7 +143,7 @@ export default function App() {
       },
 
       adoptTrip: (tripId) => {
-        const demo = [TAINAN_TRIP, HUALIEN_TRIP, TOKYO_TRIP].find((t) => t.id === tripId);
+        const demo = [TAINAN_TRIP, HUALIEN_TRIP, TOKYO_TRIP, ROOM_TRIP].find((t) => t.id === tripId);
         if (!demo) return;
         setTrips((l) => (l.some((t) => t.id === tripId) ? l : [{ ...demo }, ...l]));
         setStack([{ k: "trip", id: tripId }]);
