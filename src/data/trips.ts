@@ -24,7 +24,13 @@ export const TAINAN_TRIP: Trip = {
   nights: 2,
   phase: "ongoing",
   today: 2,
-  travellers: [],
+  /* The four from the 一起規劃 room. This trip is what 接受 AI 建議 adopts
+     (Together.tsx), and every receipt in data/expenses.ts is split between the
+     same four, so a solo roster here contradicted both: the group agreed on it
+     together and then landed on a trip that said they were alone, above a 旅費
+     ledger with four names in it. Tracks stay `who: []` — that means "everyone",
+     not "nobody", and the whole group does every stop on this trip. */
+  travellers: ["mickey", "amy", "john", "susan"],
   days: [
     {
       n: 1,

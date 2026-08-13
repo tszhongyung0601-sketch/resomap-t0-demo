@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Tab } from "../nav";
+import { OverlayHost } from "./overlay";
 
 /* iPhone 15/16 logical size, plus a bezel wide enough to read as a device.
    Declared before the component because `measure` reads them on the very first
@@ -68,6 +69,9 @@ export function AppShell({
   children: ReactNode;
 }) {
   const [{ scale, phone }, setFrame] = useState(measure);
+  /* Published to every screen through OverlayHost, so a `Sheet` opened deep
+     inside one still lands here — above the tab bar, inside the clip. */
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     /* Returning `prev` unchanged is what keeps a drag-resize from re-rendering
@@ -84,7 +88,9 @@ export function AppShell({
 
   const app = (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-bg">
-      <div className="relative flex-1 overflow-hidden">{children}</div>
+      <div className="relative flex-1 overflow-hidden">
+        <OverlayHost.Provider value={host}>{children}</OverlayHost.Provider>
+      </div>
 
       {showNav && (
         /* The bottom padding is the home indicator's own strip. 20px is what the
@@ -123,6 +129,10 @@ export function AppShell({
       )}
 
       {overlay}
+
+      {/* No position of its own, so a portalled `absolute inset-0` resolves
+          against the shell above rather than against this. */}
+      <div ref={setHost} />
     </div>
   );
 
@@ -140,7 +150,14 @@ export function AppShell({
   return (
     <div className="grid h-full w-full place-items-center">
       <div style={{ height: (SCREEN_H + BEZEL * 2) * scale }}>
-        <div style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
+        {/* `zoom`, not `transform: scale`.
+            Both fit the device to a short window, but scale rasterises the app
+            at 393px and then resamples the bitmap — every glyph, icon and
+            gradient goes soft, which on a 1280x720 laptop meant the whole demo
+            rendered at 77% and looked out of focus. `zoom` re-lays the page out
+            at the target size, so text is rasterised crisply at the size it is
+            actually shown. */}
+        <div style={{ zoom: scale }}>
           <div className="relative">
             {/* Side buttons sit behind the body so they read as part of it. */}
             <span className="absolute -left-[3px] top-[132px] h-8 w-[3px] rounded-l bg-[#2a2a2e]" />

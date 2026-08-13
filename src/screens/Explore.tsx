@@ -1,5 +1,6 @@
-import { ME, STORIES, TW_DESTINATIONS, poi, storiesForDest } from "../data";
-import { Cover } from "../components/Cover";
+import { ME, STORIES, TW_DESTINATIONS, poi, poisForDest, storiesForDest } from "../data";
+import { PoiImage } from "../components/Cover";
+import { photoFor } from "../data/imagePrompts";
 import { Avatar, Button, Card, Headphones, Screen } from "../components/ui";
 import { focusTrip } from "../lib/trip";
 import { useNav } from "../nav";
@@ -28,9 +29,11 @@ export function Explore({ trips }: { trips: Trip[] }) {
       <Hero hasTrip={Boolean(trip)} />
       {trip ? <NextTrip trip={trip} /> : <NoTrip />}
       <Destinations />
-      <Needs destId={destId} />
+      <Services destId={destId} />
       <StoryPlaces rail={rail} />
-      <div className="h-24" />
+      {/* shrink-0 or it collapses: Screen is a flex column, and a spacer with no
+          content is the first thing flexbox takes back when the page overflows. */}
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
@@ -128,7 +131,13 @@ function NextTrip({ trip }: { trip: Trip }) {
   return (
     <div className="mt-6 px-5">
       <Card className="p-4">
-        <div className="text-[12.5px] font-semibold text-ink-3">你的下一段旅程</div>
+        {/* A trip you are on day 2 of is not your "next" trip. The eyebrow read
+            你的下一段旅程 directly above 今天是第 2 天, which is the card
+            contradicting itself — reachable the moment the demo starts the
+            Tainan trip, since focusTrip prefers an ongoing one. */}
+        <div className="text-[12.5px] font-semibold text-ink-3">
+          {started ? "行程進行中" : "你的下一段旅程"}
+        </div>
         <div className="mt-1 truncate text-[20px] font-bold leading-tight text-ink">
           {trip.title}
         </div>
@@ -148,10 +157,15 @@ function NextTrip({ trip }: { trip: Trip }) {
           )}
         </div>
 
+        {/* PoiImage, not Cover. Cover only ever draws the generated graphic, so
+            this strip was the one place on the screen that would keep drawing
+            the stand-in after a real photograph landed in the manifest — the
+            same place rendering as a photo in the story rail and as a poster
+            here, two sections apart. */}
         {first.length > 0 && (
           <div className="mt-3.5 flex gap-2">
             {first.map((s) => (
-              <Cover
+              <PoiImage
                 key={s.id}
                 poi={poi(s.poiId)}
                 height={56}
@@ -167,7 +181,12 @@ function NextTrip({ trip }: { trip: Trip }) {
             drops to grey the moment a trip exists. */}
         <div className="mt-4">
           {started ? (
-            <Button onClick={() => nav.go({ k: "day", tripId: trip.id, n: trip.today })}>
+            /* Today Mode, not the day timetable. 開始今天行程 sent the traveller
+               to the full DayPlan — which is what 完整行程 is for — and left
+               screens/Today.tsx unreachable: nothing in the app navigated to
+               { k: "today" } at all. The screen exists, App renders it, and this
+               is its one door. */
+            <Button onClick={() => nav.go({ k: "today", tripId: trip.id })}>
               開始今天行程
             </Button>
           ) : (
@@ -248,6 +267,32 @@ function destScene(d: Destination): string {
   ].join(",");
 }
 
+/**
+ * A city's picture: the manifest's photograph of one of its places once that
+ * photograph has been shot, the generated scene until then.
+ *
+ * `PoiImage` needs a Poi and a Destination is not one, so the fallback stays
+ * assembled from the destination's own tint rather than widening a shared
+ * component — and the swap happens on its own the day a file lands in the
+ * manifest, with no edit here.
+ */
+function DestCover({ d }: { d: Destination }) {
+  const shot = poisForDest(d.id).find((p) => photoFor(p));
+  if (shot) {
+    return <PoiImage poi={shot} height={112} radius={16} emoji={false} className="w-full" />;
+  }
+  return (
+    <div
+      className="relative h-[112px] overflow-hidden rounded-2xl"
+      style={{ background: destScene(d) }}
+    >
+      <span className="absolute inset-0 grid place-items-center text-[36px]" aria-hidden>
+        {d.emoji}
+      </span>
+    </div>
+  );
+}
+
 function Destinations() {
   const nav = useNav();
   return (
@@ -264,14 +309,7 @@ function Destinations() {
             onClick={() => nav.go({ k: "dest", id: d.id })}
             className="w-[168px] shrink-0 text-left"
           >
-            <div
-              className="relative h-[112px] overflow-hidden rounded-2xl"
-              style={{ background: destScene(d) }}
-            >
-              <span className="absolute inset-0 grid place-items-center text-[36px]" aria-hidden>
-                {d.emoji}
-              </span>
-            </div>
+            <DestCover d={d} />
             <div className="mt-2 text-[15.5px] font-bold text-ink">{d.name}</div>
             {/* The tagline, not a trip count. A fabricated popularity number is
                 the cheapest way to lose a reader who checks. */}
@@ -283,62 +321,100 @@ function Destinations() {
   );
 }
 
-/* --------------------------------------------------------------- 4 · needs */
+/* ------------------------------------------------------------ 4 · services */
 
-function NeedTile({
+/**
+ * One service, as a card rather than an icon in a strip.
+ *
+ * The strip this replaces was four 48px circles with a one-word caption, which
+ * reads as a settings menu: something you scan past. A card with a line telling
+ * you what happens when you tap it is the difference between a label and a
+ * door.
+ *
+ * That line is not orange. index.css reserves brand orange for "primary CTA,
+ * selected state, AI highlight only", and a shelf of four services is none of
+ * the three — four orange lines in a 2×2 grid is four adverts arguing with the
+ * one orange button on the screen, which belongs to the trip.
+ */
+function ServiceCard({
   icon,
   label,
+  cta,
   onClick,
 }: {
   icon: string;
   label: string;
+  cta: string;
   onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 py-2 transition active:opacity-55"
-    >
-      <span className="grid size-12 place-items-center rounded-full bg-surface text-[21px]">
+    <Card onClick={onClick} className="flex min-h-[92px] flex-col p-4">
+      <span className="text-[20px] leading-none" aria-hidden>
         {icon}
       </span>
-      <span className="whitespace-nowrap text-[12px] text-ink-2">{label}</span>
-    </button>
+      <span className="mt-2.5 block text-[14.5px] font-bold leading-tight text-ink">{label}</span>
+      <span className="mt-1 block text-[12.5px] font-semibold leading-tight text-ink-2">{cta}</span>
+    </Card>
   );
 }
 
 /**
  * Four doors, no logos.
  *
- * Which platform a booking eventually goes through is a detail of the next
- * screen, not something to advertise on the home screen of an app that has no
- * agreement with any of them.
+ * Need first, provider second: Klook and Booking exist on the screen after this
+ * one, once the traveller has said what they are trying to do. Naming a
+ * platform here would advertise a relationship this app does not have, and
+ * would make the home screen of a travel assistant look like a marketplace.
  */
-function Needs({ destId }: { destId?: string }) {
+function Services({ destId }: { destId?: string }) {
   const nav = useNav();
   return (
     <section className="mt-8">
-      <h2 className="px-5 text-[17px] font-bold text-ink">旅程需要</h2>
-      {/* `destId` is the focused trip's, so its absence means there is no trip —
-          and telling somebody 行程排好了 when they have not planned anything is
-          the app describing a screen other than the one they are looking at. */}
-      <p className="mb-2 mt-1 px-5 text-[13px] text-ink-3">
-        {destId ? "行程排好了，剩下的也一起準備。" : "門票、住宿、交通，出發前一起準備。"}
-      </p>
+      <h2 className="px-5 text-[17px] font-bold text-ink">旅程服務</h2>
+      <p className="mb-3 mt-1 px-5 text-[13px] text-ink-3">門票、住宿、交通，一起準備好。</p>
 
-      <div className="grid grid-cols-4 px-4">
-        <NeedTile icon="🎟" label="門票" onClick={() => nav.go({ k: "tickets", destId })} />
-        <NeedTile icon="🏨" label="住宿" onClick={() => nav.go({ k: "stay", destId })} />
-        <NeedTile icon="🚆" label="交通" onClick={() => nav.go({ k: "transport", destId })} />
-        <NeedTile icon="🚗" label="租車" onClick={() => nav.go({ k: "carrental", destId })} />
+      <div className="grid grid-cols-2 gap-2.5 px-5">
+        <ServiceCard
+          icon="🎟"
+          label="門票・體驗"
+          cta="查看景點票券"
+          onClick={() => nav.go({ k: "tickets", destId })}
+        />
+        <ServiceCard
+          icon="🏨"
+          label="住宿"
+          cta="比較住宿平台"
+          onClick={() => nav.go({ k: "stay", destId })}
+        />
+        <ServiceCard
+          icon="🚆"
+          label="交通"
+          cta="查看交通選項"
+          onClick={() => nav.go({ k: "transport", destId })}
+        />
+        <ServiceCard
+          icon="🚗"
+          label="租車・接送"
+          cta="查看租車與接送"
+          onClick={() => nav.go({ k: "carrental", destId })}
+        />
       </div>
 
-      <div className="px-5">
+      {/* Everything that did not earn a tile. Deliberately not a fifth card:
+          a sheet of odds and ends should not look like a service. */}
+      <div className="mt-1.5 px-5">
         <button
           onClick={nav.moreServices}
-          className="-mx-2 inline-flex min-h-11 items-center px-2 text-[13px] font-semibold text-ink-3 active:opacity-60"
+          className="flex min-h-12 w-full items-center gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-ink-3 transition active:bg-surface"
         >
-          其他服務（保險 · eSIM · 優惠券）
+          <span aria-hidden>▦</span>
+          {/* The four names are MORE_SERVICES, in its order. The row used to
+              preview 保險, which is not what the sheet calls it (旅平險), and
+              skipped 機票比價 — the first thing actually behind the tap. */}
+          <span className="flex-1">更多服務（機票 · eSIM · 旅平險 · 優惠券）</span>
+          <span className="text-[15px]" aria-hidden>
+            ›
+          </span>
         </button>
       </div>
     </section>
@@ -393,7 +469,7 @@ function StoryPlaces({ rail }: { rail: Story[] }) {
               onClick={() => nav.go({ k: "poi", id: s.poiId })}
               className="w-[150px] shrink-0 text-left"
             >
-              <Cover poi={p} height={96} radius={16} />
+              <PoiImage poi={p} height={96} radius={16} />
               <div className="mt-2 truncate text-[14.5px] font-bold text-ink">{p.name}</div>
               <div className="truncate text-[12.5px] text-ink-3">{s.hook}</div>
               <div className="mt-1 flex items-center gap-1 text-ink-3">

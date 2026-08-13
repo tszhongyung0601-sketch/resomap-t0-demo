@@ -99,7 +99,7 @@ export function Tickets({ destId }: { destId?: string }) {
       </div>
 
       <Note>{AFFILIATE_DISCLOSURE} 實際價格與可訂日期以各平台為準。</Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
@@ -278,7 +278,7 @@ export function ProductDetail({ id }: { id: string }) {
       <Note>
         {AFFILIATE_DISCLOSURE} 實際價格與可訂日期以各平台為準，部分連結可能為聯盟行銷連結。
       </Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }

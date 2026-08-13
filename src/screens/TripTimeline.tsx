@@ -4,13 +4,16 @@ import {
   AFFILIATE_DISCLOSURE,
   BY_TRAVELLER,
   dealsForPoi,
+  ME,
   poi,
   POIS,
 } from "../data";
+import { EXPENSES } from "../data/expenses";
 import { DealCard } from "../components/DealCard";
-import { Cover } from "../components/Cover";
+import { PoiImage } from "../components/Cover";
 import { dur } from "../lib/adapt";
 import { distance, km } from "../lib/geo";
+import { total } from "../lib/split";
 import { track } from "../lib/track";
 import { openDirections } from "../lib/maps";
 import { useNav } from "../nav";
@@ -20,9 +23,9 @@ import {
   Card,
   Headphones,
   Note,
+  Row,
   Screen,
   Section,
-  Thumb,
   TopBar,
 } from "../components/ui";
 import {
@@ -58,6 +61,17 @@ import {
 export function TripHome({ trip }: { trip: Trip }) {
   const nav = useNav();
   const tickets = ticketReminders(trip);
+  /* The figure is the sum of this trip's receipts and nothing else — no
+     budget, no projection, no "還差 N 元". A trip with no bills says so rather
+     than showing NT$ 0, which reads as a total somebody worked out. */
+  const bills = EXPENSES.filter((e) => e.tripId === trip.id);
+  /* The roster minus the person holding the phone — the same rule 我的 already
+     states in prose: counting yourself as your own 旅伴 is a small lie, and this
+     screen was telling it. 東京 carries `travellers: [mickey, amy, john, susan]`
+     and `ME` is mickey, so the row read 4 位旅伴 for a party of three companions.
+     The stack drops him too, because three faces beside the word 三 is the only
+     version of this row a reader can check. */
+  const companions = trip.travellers.filter((t) => t !== ME.id);
 
   useEffect(() => {
     track("trip_view", { tripId: trip.id, destId: trip.destId });
@@ -92,14 +106,14 @@ export function TripHome({ trip }: { trip: Trip }) {
         )}
       </div>
 
-      {trip.travellers.length > 0 && (
+      {companions.length > 0 && (
         <button
           onClick={() => nav.go({ k: "travellers", tripId: trip.id })}
           className="mt-4 flex w-full items-center gap-3 px-5 py-3 text-left active:bg-surface"
         >
-          <Stack who={trip.travellers} size={28} />
+          <Stack who={companions} size={28} />
           <span className="flex-1 text-[14.5px] text-ink">
-            {trip.travellers.length} 位旅伴 · 看大家想去哪
+            {companions.length} 位旅伴 · 看大家想去哪
           </span>
           <span className="shrink-0 text-[15px] text-ink-3">›</span>
         </button>
@@ -112,6 +126,17 @@ export function TripHome({ trip }: { trip: Trip }) {
           ))}
         </div>
       </Section>
+
+      {/* Money sits with the plan, not in a wallet tab: the question "誰付了
+          什麼" only ever comes up while looking at the days it was spent on. */}
+      <div className="mt-4">
+        <Row
+          icon="💰"
+          label="旅費"
+          value={bills.length > 0 ? `NT$ ${total(bills).toLocaleString()}` : "還沒有紀錄"}
+          onClick={() => nav.go({ k: "expenses", tripId: trip.id })}
+        />
+      </div>
 
       {trip.needsStay && (
         <section className="mt-8 px-5">
@@ -192,7 +217,10 @@ function DayCard({ trip, day }: { trip: Trip; day: Day }) {
         <div className="mt-2.5 flex gap-2">
           {thumbs.map((id) => {
             const p = poi(id);
-            return <Thumb key={id} emoji={p.emoji} tint={p.tint} size={48} radius={12} />;
+            /* Emoji stays on at this size — four 48px landscapes with nothing
+               on them are four identical stripes. PoiImage drops the glyph by
+               itself the moment a real photograph exists for the place. */
+            return <PoiImage key={id} poi={p} height={48} radius={12} className="w-12" />;
           })}
         </div>
       )}
@@ -519,7 +547,9 @@ function StopRow({
         <div className="num w-11 shrink-0 pt-1 text-[14px] font-bold text-ink">
           {stop.at}
         </div>
-        <Cover poi={p} height={72} radius={12} emoji={false} className="w-[92px]" />
+        {/* The width is explicit because the component only owns its height:
+            in a flex row a picture with no intrinsic content collapses. */}
+        <PoiImage poi={p} height={72} radius={12} emoji={false} className="w-[92px]" />
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex items-center gap-1.5">
             <span className="truncate text-[15.5px] font-semibold text-ink">{p.name}</span>

@@ -40,7 +40,7 @@ export function Trips({ trips }: { trips: Trip[] }) {
         </>
       )}
 
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }

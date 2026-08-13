@@ -39,7 +39,9 @@ import {
 import { ProductDetail, Tickets } from "./screens/Tickets";
 import { Profile } from "./screens/Profile";
 import { Together, Prefs, Pool, ConsensusView } from "./screens/Together";
-import { AdminDemo } from "./screens/AdminDemo";
+import { BusinessDemo } from "./screens/BusinessDemo";
+import { Expenses, Settle, resetReceipts } from "./screens/Expenses";
+import { Today } from "./screens/Today";
 import { DemoPanel } from "./screens/DemoPanel";
 import type { Deal, StoryLength, Trip } from "./types";
 
@@ -167,6 +169,10 @@ export default function App() {
   function reset() {
     stopSpeaking();
     setTrips(INITIAL);
+    /* The receipts live in a module store, not in `trips`, so they need saying
+       out loud — otherwise a bill entered in one demo run is still there in the
+       next one, under a trip that has been rolled back. */
+    resetReceipts();
     setAdapt(null);
     setUsedAdapts([]);
     setArrival(null);
@@ -256,7 +262,13 @@ export default function App() {
   else if (route?.k === "transport") screen = <TransportFlow destId={route.destId} />;
   else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
-  else if (route?.k === "admin") screen = <AdminDemo />;
+  else if (route?.k === "business") screen = <BusinessDemo />;
+  else if (route?.k === "expenses") screen = <Expenses tripId={route.tripId} />;
+  else if (route?.k === "settle") screen = <Settle tripId={route.tripId} />;
+  else if (route?.k === "today") {
+    const t = trips.find((x) => x.id === route.tripId);
+    screen = t ? <Today trip={t} onAdjust={() => setAiSheet(true)} /> : null;
+  }
   else if (route?.k === "map") screen = <MapTab destId={focus?.destId ?? null} />;
   else if (route?.k === "profile") screen = <Profile />;
   else if (route?.k === "prefs") screen = <Prefs />;

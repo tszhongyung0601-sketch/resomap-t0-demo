@@ -23,7 +23,10 @@ export type Route =
   | { k: "transport"; destId?: string }
   | { k: "carrental"; destId?: string }
   | { k: "service"; id: ServiceId }
-  | { k: "admin" }
+  | { k: "expenses"; tripId: string }
+  | { k: "settle"; tripId: string }
+  | { k: "today"; tripId: string }
+  | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a
      destination; the other was thirteen rows of 即將推出. */

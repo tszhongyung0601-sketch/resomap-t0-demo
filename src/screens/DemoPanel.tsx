@@ -60,7 +60,9 @@ export function DemoPanel({
           皆無合作關係。
         </p>
       </div>
-      <div className="h-24" />
+      {/* shrink-0, or the spacer measures 0 in the flex column and the last
+          line sits under the tab bar. */}
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }

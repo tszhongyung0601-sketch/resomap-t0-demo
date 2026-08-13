@@ -1,78 +1,114 @@
+import { useState } from "react";
+import { photoFor } from "../data/imagePrompts";
 import type { Poi, PoiKind } from "../types";
 
 /**
- * A place's picture, without a picture.
+ * A place's picture, until there is a photograph of it.
  *
- * The demo has eighty POIs and no licensed photography, and the honest answer
- * to that is not a stock image of the wrong temple — it is not pretending to
- * have a photo at all. So each place gets a small generated landscape built
- * from layered gradients: a horizon, a ground, a light source. It reads as an
- * illustrated cover rather than a photograph, which is exactly what it is.
+ * The app ships no photography, and the honest response to that is not a stock
+ * image of the wrong temple — it is not pretending to have a photo at all.
  *
- * Every value is derived from the POI's id, so a place looks the same on the
- * home screen, in search, and in its own header. Randomising per render would
- * be the same amount of code and would make the app feel like it was still
- * loading.
+ * The first version of this drew soft radial gradients, which was the wrong
+ * instinct: at card size a blurry blob does not read as "an illustration", it
+ * reads as "a photograph that failed to load properly", and the whole product
+ * looks unfinished. Everything here is now hard-edged — flat bands, a crisp
+ * horizon, a solid sun, angular silhouettes. Nothing is soft, so nothing can be
+ * mistaken for out of focus. It looks like a screen-printed travel poster,
+ * which is a thing somebody chose.
+ *
+ * When a real photograph arrives in the manifest, `PoiImage` uses it instead.
  */
 
 type Scene = {
   sky: [string, string];
-  land: [string, string];
-  /** Where the horizon sits, as a percentage from the top. */
+  land: string;
+  ridge: string;
+  /** Percentage from the top. */
   horizon: number;
   sun: string | null;
 };
 
 const SCENES: Record<PoiKind, Scene> = {
-  nature: {
-    sky: ["#BFD9E8", "#E3EFF4"],
-    land: ["#7FA88E", "#4F7A63"],
-    horizon: 58,
-    sun: "rgba(255,241,214,.85)",
-  },
-  attraction: {
-    sky: ["#F2E3CB", "#EFD9BA"],
-    land: ["#C9A177", "#9E7449"],
-    horizon: 62,
-    sun: "rgba(255,236,200,.7)",
-  },
-  food: {
-    sky: ["#F6DFD2", "#F2CDBB"],
-    land: ["#C97F5E", "#9E5638"],
-    horizon: 66,
-    sun: null,
-  },
-  shopping: {
-    sky: ["#E8DFEE", "#DED2E8"],
-    land: ["#9C8AAE", "#6F5E85"],
-    horizon: 60,
-    sun: "rgba(255,230,240,.6)",
-  },
-  activity: {
-    sky: ["#D8E7EE", "#C6DCE8"],
-    land: ["#6F9BAE", "#456F84"],
-    horizon: 64,
-    sun: null,
-  },
-  stay: {
-    sky: ["#E6E7EC", "#D9DBE3"],
-    land: ["#8E90A0", "#63677A"],
-    horizon: 60,
-    sun: null,
-  },
-  transit: {
-    sky: ["#E3E7EC", "#D4DAE1"],
-    land: ["#8A929C", "#5F676F"],
-    horizon: 68,
-    sun: null,
-  },
+  nature:     { sky: ["#A8CFE4", "#D6E9F0"], land: "#4E7C62", ridge: "#3C6650", horizon: 62, sun: "#FFF0CE" },
+  attraction: { sky: ["#F4DFBE", "#F8EBD6"], land: "#B07C4E", ridge: "#8E5F38", horizon: 66, sun: "#FFE9B8" },
+  food:       { sky: ["#F6D6C4", "#FAE6DA"], land: "#B25E3E", ridge: "#8E432A", horizon: 70, sun: null },
+  shopping:   { sky: ["#DED0EA", "#EDE5F3"], land: "#7C6796", ridge: "#5F4A78", horizon: 64, sun: "#F6DCEA" },
+  activity:   { sky: ["#BFDCE8", "#DCEDF3"], land: "#4E7F96", ridge: "#3A6377", horizon: 68, sun: null },
+  stay:       { sky: ["#DCDEE6", "#EAEBF0"], land: "#6E7285", ridge: "#545869", horizon: 64, sun: null },
+  transit:    { sky: ["#DCE2E8", "#EBEFF3"], land: "#6B7480", ridge: "#515963", horizon: 72, sun: null },
 };
 
-/** Stable per-id jitter, so two temples in the same city do not look identical. */
+/** Stable per-id jitter, so two temples in one city do not look identical. */
 function seed(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return Math.abs(h);
+}
+
+function Generated({
+  poi,
+  radius,
+  emoji,
+}: {
+  poi: Poi;
+  radius: number;
+  emoji: boolean;
+}) {
+  const s = SCENES[poi.kind] ?? SCENES.attraction;
+  const n = seed(poi.id);
+  const horizon = s.horizon + ((n % 11) - 5);
+  const sunX = 20 + (n % 60);
+  /* Two ridges, offset, drawn as clipped polygons rather than blurred blobs. */
+  const peakA = 24 + (n % 22);
+  const peakB = 58 + ((n >> 3) % 24);
+
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden"
+      style={{
+        borderRadius: radius,
+        /* Hard stop at the horizon: two flat fields, no gradient across the
+           join. This single edge is what stops it reading as a photo. */
+        background: `linear-gradient(180deg, ${s.sky[0]} 0%, ${s.sky[1]} ${horizon}%, ${s.land} ${horizon}%, ${s.land} 100%)`,
+      }}
+    >
+      {s.sun && (
+        <span
+          className="absolute rounded-full"
+          style={{
+            width: "18%",
+            aspectRatio: "1",
+            left: `${sunX}%`,
+            top: `${Math.max(6, horizon - 34)}%`,
+            background: s.sun,
+          }}
+        />
+      )}
+
+      {/* Ridge line — a solid polygon sitting on the horizon. */}
+      <svg
+        className="absolute inset-x-0"
+        style={{ top: `${horizon - 16}%`, height: "26%" }}
+        viewBox="0 0 100 26"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        <polygon
+          points={`0,26 ${peakA},4 ${(peakA + peakB) / 2},15 ${peakB},7 100,26`}
+          fill={s.ridge}
+        />
+      </svg>
+
+      {emoji && (
+        <span
+          className="absolute inset-0 grid place-items-center"
+          style={{ fontSize: "34%" }}
+        >
+          {poi.emoji}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function Cover({
@@ -85,42 +121,65 @@ export function Cover({
   poi: Poi;
   height?: number | string;
   radius?: number;
-  /** Off where the name alone carries it — a dense list, a small thumbnail. */
   emoji?: boolean;
   className?: string;
 }) {
-  const s = SCENES[poi.kind] ?? SCENES.attraction;
-  const n = seed(poi.id);
-  /* ±6% on the horizon and a wandering sun: enough that a row of cards reads as
-     a set of places rather than one asset repeated. */
-  const horizon = s.horizon + ((n % 13) - 6);
-  const sunX = 18 + (n % 64);
-  const hills = 34 + (n % 30);
+  return (
+    <div
+      className={`relative shrink-0 overflow-hidden ${className}`}
+      style={{ height, borderRadius: radius }}
+      aria-hidden
+    >
+      <Generated poi={poi} radius={radius} emoji={emoji} />
+    </div>
+  );
+}
 
-  const layers = [
-    s.sun && `radial-gradient(52% 60% at ${sunX}% ${horizon - 20}%, ${s.sun} 0%, transparent 70%)`,
-    /* Two soft mounds on the horizon line, offset from each other. */
-    `radial-gradient(64% 30% at ${hills}% ${horizon}%, ${s.land[0]} 0%, transparent 72%)`,
-    `radial-gradient(56% 24% at ${100 - hills}% ${horizon + 2}%, ${s.land[0]} 0%, transparent 74%)`,
-    `linear-gradient(180deg, transparent ${horizon}%, ${s.land[0]} ${horizon}%, ${s.land[1]} 100%)`,
-    `linear-gradient(180deg, ${s.sky[0]} 0%, ${s.sky[1]} ${horizon}%)`,
-  ]
-    .filter(Boolean)
-    .join(",");
+/**
+ * The real photograph when the manifest has one, the generated cover when it
+ * does not.
+ *
+ * `srcSet` is written for 1x/2x because the demo is shown on Retina laptops and
+ * phones, where a 400px-wide source in a 400px slot is visibly soft. The
+ * generated cover stays behind the photo rather than being replaced by it, so a
+ * failed request degrades to the graphic instead of a broken-image icon — and
+ * the name is always in the DOM for anybody who cannot see either.
+ */
+export function PoiImage({
+  poi,
+  height = 120,
+  radius = 14,
+  emoji = true,
+  className = "",
+}: {
+  poi: Poi;
+  height?: number | string;
+  radius?: number;
+  emoji?: boolean;
+  className?: string;
+}) {
+  const shot = photoFor(poi);
+  const [failed, setFailed] = useState(false);
+  const showPhoto = Boolean(shot?.src) && !failed;
 
   return (
     <div
       className={`relative shrink-0 overflow-hidden ${className}`}
-      style={{ height, borderRadius: radius, background: layers }}
-      aria-hidden
+      style={{ height, borderRadius: radius }}
     >
-      {emoji && (
-        <span
-          className="absolute inset-0 grid place-items-center"
-          style={{ fontSize: typeof height === "number" ? height * 0.34 : 34 }}
-        >
-          {poi.emoji}
-        </span>
+      <Generated poi={poi} radius={radius} emoji={emoji && !showPhoto} />
+
+      {showPhoto && shot?.src && (
+        <img
+          src={shot.src}
+          srcSet={`${shot.src} 1x, ${shot.src.replace(/(\.\w+)$/, "@2x$1")} 2x`}
+          alt={poi.name}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 size-full object-cover"
+          style={{ borderRadius: radius }}
+        />
       )}
     </div>
   );
@@ -130,12 +189,12 @@ export function Cover({
  * The label that has to sit on any generated historical scene.
  *
  * An illustration of what a place looked like three centuries ago is the one
- * image type a traveller cannot check for themselves, which is precisely why it
- * says so on the image rather than in a footnote nobody scrolls to.
+ * image a traveller cannot check for themselves, which is exactly why it says
+ * so on the image rather than in a footnote nobody scrolls to.
  */
 export function AiSceneNote() {
   return (
-    <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
+    <span className="absolute bottom-2 left-2 z-10 inline-flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold text-white">
       ✨ AI 情境重現
     </span>
   );

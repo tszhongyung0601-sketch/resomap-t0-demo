@@ -457,6 +457,73 @@ export interface Room {
   votes: Vote[];
 }
 
+/* ---------------------------------------------------------------- expenses */
+
+export type ExpenseCategory = "food" | "stay" | "transport" | "ticket" | "shop" | "other";
+
+export const EXPENSE_LABELS: Record<ExpenseCategory, string> = {
+  food: "餐飲",
+  stay: "住宿",
+  transport: "交通",
+  ticket: "門票",
+  shop: "購物",
+  other: "其他",
+};
+
+export const EXPENSE_ICONS: Record<ExpenseCategory, string> = {
+  food: "🍜",
+  stay: "🏨",
+  transport: "🚆",
+  ticket: "🎟️",
+  shop: "🛍️",
+  other: "☕",
+};
+
+/**
+ * How one bill is divided.
+ *
+ * "even" is the case that actually happens; the other two exist because the one
+ * time a group needs them — somebody skipped the meal, two people shared a room
+ * — is the time an app that only does even splits gets abandoned for a
+ * spreadsheet.
+ */
+export type SplitMode = "even" | "amount" | "share";
+
+export interface Expense {
+  id: string;
+  tripId: string;
+  /** TWD. Integer — nobody splits a bill to the cent on holiday. */
+  amountTwd: number;
+  category: ExpenseCategory;
+  note: string;
+  /** Who actually paid the whole bill. */
+  paidBy: TravellerId;
+  /** Who it was for. Paying for somebody not on this list is the point. */
+  forWhom: TravellerId[];
+  mode: SplitMode;
+  /**
+   * Only for "amount" (TWD per person) and "share" (relative weights).
+   * Absent for an even split, where the numbers are derivable.
+   */
+  custom?: Partial<Record<TravellerId, number>>;
+  /** The itinerary day it belongs to, so the list can group by date. */
+  day: number;
+  date: string;
+}
+
+/** One person's net position: positive means the group owes them. */
+export interface Balance {
+  who: TravellerId;
+  net: number;
+}
+
+/** One suggested payment that clears part of the debt. */
+export interface Transfer {
+  from: TravellerId;
+  to: TravellerId;
+  amount: number;
+}
+
 /* ----------------------------------------------------------------- events */
 
 export type EventName =
@@ -482,9 +549,7 @@ export type EventName =
   | "directions_open"
   | "room_view"
   | "pref_saved"
-  | "vote_cast"
-  | "consensus_view"
-  | "consensus_accept";
+  | "vote_cast";
 
 export interface TrackedEvent {
   name: EventName;

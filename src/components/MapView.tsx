@@ -195,10 +195,16 @@ export function MapView({
   );
 }
 
-/** ©️ OpenStreetMap. Required by the tile licence, so it is not optional. */
+/**
+ * ©️ OpenStreetMap. Required by the tile licence, so it is not optional.
+ *
+ * 11px, the same floor every other label in the app keeps. An attribution the
+ * licence obliges us to show is the last thing to shrink below legible — set at
+ * 10px it was the only text in the product a reader could not actually read.
+ */
 export function MapCredit() {
   return (
-    <div className="pointer-events-none absolute bottom-0 left-0 z-10 bg-bg/70 px-1.5 py-0.5 text-[10px] text-ink-3">
+    <div className="pointer-events-none absolute bottom-0 left-0 z-10 bg-bg/70 px-1.5 py-0.5 text-[11px] text-ink-3">
       ©️ OpenStreetMap contributors
     </div>
   );

@@ -1,39 +1,88 @@
 import { useMemo, useState } from "react";
 import { DealCard } from "../components/DealCard";
 import { Empty, Note, Screen, Tabs, TopBar } from "../components/ui";
-import { AFFILIATE_DISCLOSURE, BY_POI, DEALS, dest, relevantDeals } from "../data";
+import { AFFILIATE_DISCLOSURE, DEALS, dest } from "../data";
+import { focusTrip } from "../lib/trip";
 import { useNav } from "../nav";
-import type { Deal, Trip } from "../types";
+import { DEAL_CATEGORY_LABELS } from "../types";
+import type { Deal, DealCategory, Trip } from "../types";
 
-type TabId = "reco" | "ticket" | "stay" | "transport" | "local";
+type TabId = "reco" | "ticket" | "stay" | "transport" | "car" | "more";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "reco", label: "為你推薦" },
   { id: "ticket", label: "門票" },
   { id: "stay", label: "住宿" },
   { id: "transport", label: "交通" },
-  { id: "local", label: "在地優惠" },
+  { id: "car", label: "租車・接送" },
+  { id: "more", label: "更多" },
 ];
 
 /**
- * `relevantDeals` pads its tail with other cities once the traveller's own
- * destination runs out. On a city with two records that fills 為你推薦 with
- * Tokyo tickets under a line naming 宜蘭 — the exact thing this screen exists to
- * avoid — so once we know where the trip is, the tail is cut rather than shown.
+ * 租車・接送 split out of 交通.
  *
- * Its default cap of eight is sized for a home-screen strip, and it counts the
- * padding it is about to hand over. 台南 has ten records of its own and 東京
- * nine, so on both demo cities the cap ran out inside the city's own rows and
- * 台灣 eSIM / 旅平險 never arrived — under a 不分城市都用得到 heading this
- * screen renders specifically to hold them. This is the screen the traveller
- * opened to see offers, and the category tabs below are already uncapped, so
- * the relevant list is shown whole.
+ * Transport records carry no sub-mode field, so the mode is read off the title —
+ * the same rule Services.tsx already matches 租車 / 接送 with, kept identical so
+ * the two screens can never disagree about where a deal belongs. Rail, passes
+ * and airport express stay under 交通.
  */
-function recoDeals(destId: string | null): Deal[] {
-  if (!destId) return relevantDeals(null);
-  return relevantDeals(destId, DEALS.length).filter(
-    (d) => !d.destId || d.destId === destId,
-  );
+const isCarOrTransfer = (d: Deal) => /租車|接送/.test(d.title);
+
+/** 更多: the three categories nobody opens this tab for, but everybody needs. */
+const MORE_GROUPS: DealCategory[] = ["esim", "insurance", "local"];
+
+/**
+ * eSIM and 旅平險 with no city of their own — the entire content of
+ * 台灣境內都用得到. 為你推薦 above it excludes them so the same card cannot
+ * appear twice on one screen under two different claims.
+ */
+const isUniversal = (d: Deal) =>
+  !d.destId && (d.category === "esim" || d.category === "insurance");
+
+const UNIVERSAL = DEALS.filter(isUniversal);
+
+/**
+ * These deals are city-less, not country-less.
+ *
+ * 「台灣 eSIM 5 天吃到飽」 and 「國內旅遊平安險 3 日」 both carry no `destId`
+ * because no single city owns them — but read the titles: one is a Taiwan data
+ * plan, the other is domestic cover. Printing them under a heading that says
+ * they work anywhere is how somebody flying to 東京 ends up holding a SIM that
+ * will not connect and a policy that excludes the trip. The heading was a claim
+ * the data could not back for every destination in the set.
+ *
+ * So the block is shown for a Taiwan destination and for no destination at all,
+ * and withheld the moment the trip leaves the country. Nothing is hidden by
+ * this: every one of these cards is still one tap away under 更多.
+ */
+function universalFor(home: string | null): Deal[] {
+  if (!home) return UNIVERSAL;
+  return dest(home)?.country === "tw" ? UNIVERSAL : [];
+}
+
+/**
+ * What 為你推薦 is allowed to contain.
+ *
+ * With a trip: that city, and nothing else. Padding the tail with other cities
+ * puts a Tokyo ticket under a heading that says 與你的旅程相關, which is an
+ * advert wearing a recommendation's words.
+ *
+ * 在地優惠 is left out of both branches: none of it is bookable yet, and three
+ * disabled cards at the top of the tab is a worse answer than 更多, where they
+ * sit with their 即將推出 label and an explanation.
+ */
+function recoList(home: string | null): Deal[] {
+  const eligible = (d: Deal) => d.category !== "local" && !isUniversal(d);
+  if (!home) return DEALS.filter(eligible);
+  return DEALS.filter((d) => d.destId === home && eligible(d));
+}
+
+function catList(tab: Exclude<TabId, "reco" | "more">): Deal[] {
+  if (tab === "transport")
+    return DEALS.filter((d) => d.category === "transport" && !isCarOrTransfer(d));
+  if (tab === "car")
+    return DEALS.filter((d) => d.category === "transport" && isCarOrTransfer(d));
+  return DEALS.filter((d) => d.category === tab);
 }
 
 interface Why {
@@ -44,83 +93,96 @@ interface Why {
 }
 
 /**
- * Why a card is in 適合你的旅程, derived from the live trip.
+ * Why a card is in 與你的旅程相關, in the order the reasons actually know
+ * something: the place is on the itinerary and on a named day, the city is the
+ * one being travelled to, it is transport for a trip that exists.
  *
- * Three honest sources, in order of how much they actually know: the place is
- * already on the itinerary, the city is the one being travelled to, the deal is
- * transport for a trip that exists. Anything else gets no line — "ResoMap 推薦"
- * is not a reason, it is the absence of one wearing the word.
- *
- * `rank` is that same order, made load-bearing. The line at the top of this
- * screen promises 已經加入的地點排最上面, and until the list was actually sorted
- * by it that was just a sentence: the cards came out in dataset order, so a deal
- * for a place already on the itinerary landed wherever `deals.ts` happened to
- * list it. A stated ordering rule the code does not follow is the same class of
- * defect as an invented number — it is checkable, and it was wrong.
+ * Anything else gets no line. 「ResoMap 推薦」 is not a reason, it is the absence
+ * of one wearing the word — and `rank` makes that visible by sorting the
+ * unreasoned cards underneath every card that can say why it is here.
  */
-function makeReason(trips: Trip[], focusDestId: string | null) {
-  const plannedPois = new Set<string>();
-  const tripDests = new Set<string>();
-  for (const t of trips) {
-    tripDests.add(t.destId);
-    for (const d of t.days)
-      for (const tr of d.tracks) for (const s of tr.stops) plannedPois.add(s.poiId);
-  }
-  const home = focusDestId ?? trips[0]?.destId ?? null;
+function makeReason(trip: Trip | undefined, home: string | null) {
+  /* Day numbers are read off the focused trip alone. A "Day 2" printed beside a
+     deal has to be Day 2 of the trip the traveller is actually looking at;
+     scanning every trip would make the number true of some itinerary and wrong
+     on this screen. */
+  const dayOf = new Map<string, number>();
+  if (trip)
+    for (const d of trip.days)
+      for (const tr of d.tracks)
+        for (const s of tr.stops) if (!dayOf.has(s.poiId)) dayOf.set(s.poiId, d.n);
 
   return (deal: Deal): Why | null => {
-    if (deal.poiId && plannedPois.has(deal.poiId)) {
-      const name = BY_POI[deal.poiId]?.name;
-      if (name) return { text: `你已加入${name}`, rank: 0 };
+    if (deal.poiId) {
+      const n = dayOf.get(deal.poiId);
+      if (n !== undefined) return { text: `你已加入 Day ${n}`, rank: 0 };
     }
-    if (deal.destId && tripDests.has(deal.destId)) {
+    /* 「適合你的花蓮行程」 was a judgement the app cannot make: it knows the
+       city, not the dates, the budget, or whether the room is already booked.
+       What it can say is where the traveller is going, and that is checkable
+       against the card underneath. */
+    if (trip && deal.destId && deal.destId === home) {
       const city = dest(deal.destId)?.name;
-      if (city) return { text: `適合你的${city}行程`, rank: 1 };
+      if (city) return { text: `你這趟要去${city}`, rank: 1 };
     }
-    if (deal.category === "transport" && home) {
-      const city = dest(home)?.name;
-      if (city) return { text: `與你的${city}行程相關`, rank: 2 };
-    }
+    /* Every transport record in the demo names a city, so those resolve through
+       the rule above. This branch is what a national product — a pass, a
+       country-wide transfer — would land on. */
+    if (trip && deal.category === "transport")
+      return { text: "與目前目的地相關", rank: 2 };
     return null;
   };
+}
+
+/**
+ * The line under the heading.
+ *
+ * It describes the filter that actually ran, and the filter is `home` — not
+ * whether a trip exists. Keyed on the trip, 「這裡先照分類排列」 could sit above
+ * a list already narrowed to one city, which is a promise about the list below
+ * that the list below does not keep.
+ */
+function recoNote(city: string | null, hasTrip: boolean): string {
+  if (!city) return "目前沒有行程可以參考，這裡先照分類排列。";
+  return hasTrip
+    ? `只顯示對得上這趟${city}行程的優惠，其他城市不會出現在這裡。`
+    : `只顯示${city}的優惠，其他城市不會出現在這裡。`;
 }
 
 /**
  * The commercial tab, ordered by where the traveller is going.
  *
  * A coupon list sorted by category puts Tokyo tickets in front of somebody
- * standing in Tainan — which is the moment an offers page stops being useful
- * and starts being an ad break. 為你推薦 is the traveller's own destination
- * first; the category tabs exist for the rarer case of browsing on purpose.
+ * standing in Tainan — the moment an offers page stops being useful and starts
+ * being an ad break. 為你推薦 is the traveller's own trip first; the five
+ * category tabs exist for the rarer case of browsing on purpose.
  */
 export function Deals({ destId }: { destId: string | null }) {
   const nav = useNav();
   const [tab, setTab] = useState<TabId>("reco");
 
-  const list =
-    tab === "reco" ? recoDeals(destId) : DEALS.filter((d) => d.category === tab);
+  /* App hands over the focused trip's city; resolving the trip here as well is
+     what makes 你已加入 Day N possible, and the fallback keeps the screen
+     correct if it is ever rendered without the prop. */
+  const focus = focusTrip(nav.trips);
+  const home = destId ?? focus?.destId ?? null;
+  const city = home ? dest(home)?.name ?? null : null;
 
-  const reason = useMemo(() => makeReason(nav.trips, destId), [nav.trips, destId]);
+  const reason = useMemo(() => makeReason(focus, home), [focus, home]);
 
-  /* App passes the focused trip's destination and nothing else, so a name here
-     means a real trip to that city exists — the heading is allowed to say 你的.
-     Without one it falls back to the tab's own words. Never 熱門優惠: nothing in
-     this dataset measures how many people bought anything. */
-  const city = destId ? dest(destId)?.name ?? null : null;
+  /* One list, sorted once. `sort` is stable, so cards sharing a rank keep
+     dataset order and the two rules compose instead of fighting; the array is
+     the one `map` just produced, so nothing shared is mutated. */
+  const reco = useMemo(
+    () =>
+      recoList(home)
+        .map((d) => ({ d, why: reason(d) }))
+        .sort((a, b) => (a.why?.rank ?? 3) - (b.why?.rank ?? 3)),
+    [home, reason],
+  );
 
-  /* Only 為你推薦 splits. On a category tab every card is there because the
-     traveller asked for that category, and a reason line would be restating
-     the tab they just tapped. */
-  const scored =
-    tab === "reco" ? list.map((d) => ({ d, why: reason(d) })) : [];
-  /* `sort` is stable, so cards sharing a rank keep the city-first order
-     `recoDeals` handed over — the two rules compose instead of fighting. The
-     array is the one `filter` just produced, so nothing shared is mutated. */
-  const forYou = scored
-    .filter((s): s is { d: Deal; why: Why } => s.why !== null)
-    .sort((a, b) => a.why.rank - b.why.rank);
-  const rest = scored.filter((s) => !s.why);
-  const split = forYou.length > 0;
+  const universal = universalFor(home);
+  const list = tab === "reco" || tab === "more" ? [] : catList(tab);
 
   return (
     <Screen>
@@ -131,53 +193,55 @@ export function Deals({ destId }: { destId: string | null }) {
       />
 
       <div className="px-5 pt-4">
-        {/* The ordering rule, said once, in the traveller's words. A list that
-            claims to be "為你推薦" and then never says on what basis is asking
-            to be read as paid placement. Only the three things that genuinely
-            move a card are named — city, added places, and the tail being cut. */}
-        {tab === "reco" && (
-          <p className="pb-4 text-[13px] leading-relaxed text-ink-3">
-            {city
-              ? "跟著你的行程排：你要去的城市在前，已經加入的地點排最上面，其他城市的優惠不會出現。"
-              : "目前沒有行程可以參考，這裡先照分類排列。"}
-          </p>
-        )}
-
-        {tab === "local" && (
-          <p className="pb-3 text-[13px] leading-relaxed text-ink-3">
-            在地商家優惠還沒有開放。這裡先讓你看見方向，目前還不能使用。
-          </p>
-        )}
-
-        {/* Every 在地優惠 record carries `comingLater`, so DealCard stamps the
-            即將推出 label and disables the card without this screen asking. */}
-        {list.length === 0 ? (
-          <Empty icon="🏷" text="這個分類目前沒有可以看的優惠" />
-        ) : split ? (
+        {tab === "reco" ? (
           <>
-            <h2 className="pb-3 text-[17px] font-bold text-ink">
-              {city ? `你的${city}行程可能用得到` : "為你推薦"}
+            <h2 className="text-[17px] font-bold text-ink">
+              {focus ? "與你的旅程相關" : "為你推薦"}
             </h2>
-            <div className="space-y-2.5">
-              {forYou.map(({ d, why }) => (
-                <ReasonedCard key={d.id} deal={d} why={why.text} onOpen={nav.openDeal} />
-              ))}
-            </div>
-            {rest.length > 0 && (
+            {/* Said once, and checkable: the list below really is filtered to
+                this city, and every card really does carry its own reason. */}
+            <p className="pb-3 pt-1 text-[13px] leading-relaxed text-ink-3">
+              {recoNote(city, Boolean(focus))}
+            </p>
+
+            {reco.length === 0 ? (
+              <p className="pb-1 text-[13px] leading-relaxed text-ink-3">
+                這趟行程目前沒有可以看的優惠。
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {reco.map(({ d, why }) =>
+                  why ? (
+                    <ReasonedCard
+                      key={d.id}
+                      deal={d}
+                      why={why.text}
+                      onOpen={nav.openDeal}
+                    />
+                  ) : (
+                    <DealCard key={d.id} deal={d} onOpen={nav.openDeal} />
+                  ),
+                )}
+              </div>
+            )}
+
+            {universal.length > 0 && (
               <>
-                {/* These are the records with no destId at all — eSIM, 旅平險.
-                    Saying so is more useful than another 推薦 heading. */}
                 <h2 className="pb-3 pt-7 text-[14px] font-semibold text-ink-3">
-                  不分城市都用得到
+                  台灣境內都用得到
                 </h2>
                 <div className="space-y-2.5">
-                  {rest.map(({ d }) => (
+                  {universal.map((d) => (
                     <DealCard key={d.id} deal={d} onOpen={nav.openDeal} />
                   ))}
                 </div>
               </>
             )}
           </>
+        ) : tab === "more" ? (
+          <MoreList onOpen={nav.openDeal} />
+        ) : list.length === 0 ? (
+          <Empty icon="🏷" text="這個分類目前沒有可以看的優惠" />
         ) : (
           <div className="space-y-2.5">
             {list.map((d) => (
@@ -187,16 +251,51 @@ export function Deals({ destId }: { destId: string | null }) {
         )}
       </div>
 
-      {/* One block, at the bottom, for the whole screen. Repeating this on every
-          card would make the page look like a legal notice and get skipped. */}
+      {/* One block, at the bottom, for the whole screen — every tab. Repeating
+          it per card would make the page read like a legal notice and get
+          skipped, which is the opposite of disclosure. */}
       <Note>
         部分連結可能為聯盟行銷連結。若透過連結完成預訂，ResoMap
         可能取得分潤，不影響你的購買價格。
         <br />
         {AFFILIATE_DISCLOSURE}
       </Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
+  );
+}
+
+/**
+ * 更多, kept in three named groups.
+ *
+ * Flattened, a bookable eSIM sits next to a 在地優惠 that is not open yet and
+ * the card's own 即將推出 label is doing all the work of telling them apart.
+ */
+function MoreList({ onOpen }: { onOpen: (d: Deal) => void }) {
+  return (
+    <div className="space-y-7">
+      {MORE_GROUPS.map((c) => {
+        const items = DEALS.filter((d) => d.category === c);
+        if (items.length === 0) return null;
+        return (
+          <section key={c}>
+            <h2 className="text-[14px] font-semibold text-ink-3">
+              {DEAL_CATEGORY_LABELS[c]}
+            </h2>
+            {c === "local" && (
+              <p className="pt-1 text-[12.5px] leading-relaxed text-ink-3">
+                在地商家優惠還沒有開放。這裡先讓你看見方向，目前還不能使用。
+              </p>
+            )}
+            <div className="space-y-2.5 pt-3">
+              {items.map((d) => (
+                <DealCard key={d.id} deal={d} onOpen={onOpen} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

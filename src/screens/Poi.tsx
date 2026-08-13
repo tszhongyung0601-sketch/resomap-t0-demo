@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AFFILIATE_DISCLOSURE, POIS, dealsForPoi, poi } from "../data";
 import { story } from "../data/stories";
-import { AiSceneNote, Cover } from "../components/Cover";
+import { AiSceneNote, PoiImage } from "../components/Cover";
+import { sceneFor } from "../data/imagePrompts";
 import { DealCard } from "../components/DealCard";
 import { Button, Headphones, Note, Screen, Section, StoryBadge, Thumb } from "../components/ui";
 import { distance, km } from "../lib/geo";
@@ -111,7 +112,20 @@ export function Poi({ id }: { id: string }) {
   const nav = useNav();
   const p = poi(id);
 
-  const [saved, setSaved] = useState(false);
+  /**
+   * Both pieces of state are keyed by POI id, and neither may be a bare boolean.
+   *
+   * `id` changes without this component unmounting: every 附近 row navigates to
+   * another place, and App renders the same <Poi> in the same position, so React
+   * keeps the instance and its state. A boolean therefore belonged to whichever
+   * place happened to be open when it was set — save 赤崁樓, tap 神農街 in 附近,
+   * and 神農街 opened with the heart already filled against a place the traveller
+   * had never saved. The effect below was already written with `[id]` for exactly
+   * this reason; the state had not caught up with it.
+   */
+  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [sceneFailedId, setSceneFailedId] = useState<string | null>(null);
+  const saved = savedIds.has(id);
 
   useEffect(() => {
     track("poi_view", { poiId: id });
@@ -141,6 +155,10 @@ export function Poi({ id }: { id: string }) {
 
   const st = story(p.storyId);
   const era = st ? sceneEra(st) : null;
+  /* The generated period image, and only that. Every slot in the manifest is
+     still "todo", so today this is always undefined and the block below renders
+     its placeholder — which is the honest state, not a bug to route around. */
+  const scene = sceneFor(p.id);
 
   /* Two blocks, two promises: a ticket only where the venue genuinely sells
      admission, a local offer only ever as 即將推出. Filtering by category is
@@ -149,6 +167,15 @@ export function Poi({ id }: { id: string }) {
   const attached = dealsForPoi(id);
   const tickets = p.ticketed ? attached.filter((d) => d.category === "ticket") : [];
   const localOffers = attached.filter((d) => d.category === "local");
+
+  function toggleSaved() {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function addToTrip() {
     /* nav.trips, not the TRIPS export. The export is the starting fixture: it
@@ -167,11 +194,12 @@ export function Poi({ id }: { id: string }) {
 
   return (
     <Screen>
-      {/* A generated landscape rather than a flat tint: the page now opens on
-          something shaped like a place. Square corners — it runs to the edges
-          of the screen, so a radius here would only cut the status bar. */}
+      {/* The photograph the moment the manifest has one, the generated landscape
+          until then — the swap happens inside PoiImage, so this page does not
+          have to know which it got. Square corners: it runs to the edges of the
+          screen, so a radius here would only cut the status bar. */}
       <div className="relative shrink-0">
-        <Cover poi={p} height={220} radius={0} emoji />
+        <PoiImage poi={p} height={220} radius={0} emoji />
         <button
           onClick={() => nav.back()}
           aria-label="返回"
@@ -180,7 +208,7 @@ export function Poi({ id }: { id: string }) {
           ‹
         </button>
         <button
-          onClick={() => setSaved((v) => !v)}
+          onClick={toggleSaved}
           aria-label={saved ? "取消收藏" : "收藏"}
           aria-pressed={saved}
           className={`absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-bg/90 text-[18px] active:bg-bg ${
@@ -247,19 +275,50 @@ export function Poi({ id }: { id: string }) {
         )}
 
         {/* What the story is describing, as a picture.
-            `AiSceneNote` is not decoration and not optional: this is the one
-            image on the page a traveller has no way of checking, so it says on
-            the image itself that no camera was ever here. The emoji is off —
-            a place marker sitting on top of a scene turns it back into a
-            thumbnail. `era` gates the whole block, so a place whose guide never
-            names a century simply does not get one. */}
+
+            This used to draw the same generated cover as the hero and label it
+            三百年前, which made the claim self-refuting: the two images were
+            pixel-identical, so the only thing the label could tell a traveller
+            was that ResoMap will put a caption on anything. A period image has
+            to be a different image or it is not a period image.
+
+            So it comes from the scene manifest and nowhere else. When the slot
+            is filled, `AiSceneNote` rides on it — this is the one picture on the
+            page nobody can check against the place in front of them, so it says
+            on the image itself that no camera was ever here. When the slot is
+            empty, the block says so and stops. A quiet 製作中 costs a traveller
+            nothing; a fabricated past costs them their trust in the rest of the
+            page. `era` still gates the whole thing, so a place whose guide never
+            names a century gets neither. */}
         {st && era && (
           <div className="mt-5">
-            <div className="text-[13px] text-ink-3">如果回到 {era} 年前……</div>
-            <div className="relative mt-2">
-              <Cover poi={p} height={140} radius={14} emoji={false} />
-              <AiSceneNote />
-            </div>
+            {/* No spaces around `era`: it is a Chinese numeral, not a figure.
+                The app spaces 建議停留 1 小時 because the numeral is Latin;
+                「如果回到 三百 年前」 is the same rule misapplied, and it reads
+                as a gap in the sentence. */}
+            <div className="text-[13px] text-ink-3">如果回到{era}年前……</div>
+            {scene?.src && sceneFailedId !== id ? (
+              <div className="relative mt-2">
+                <img
+                  src={scene.src}
+                  alt={`${p.name} ${era}年前的 AI 情境重現`}
+                  loading="lazy"
+                  decoding="async"
+                  /* A 404 here has to land on 製作中, not on a broken-image
+                     glyph wearing an ✨ AI 情境重現 badge — the badge would be
+                     labelling nothing, which is the one thing this block exists
+                     to prevent. Same guarantee PoiImage gives by keeping the
+                     generated cover behind the photograph. */
+                  onError={() => setSceneFailedId(id)}
+                  className="h-[140px] w-full rounded-[14px] object-cover"
+                />
+                <AiSceneNote />
+              </div>
+            ) : (
+              <div className="mt-2 grid h-[140px] place-items-center rounded-[14px] bg-surface-2">
+                <span className="text-[12.5px] text-ink-3">情境圖製作中</span>
+              </div>
+            )}
           </div>
         )}
       </div>

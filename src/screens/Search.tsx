@@ -230,7 +230,7 @@ export function Search({ q }: { q: string }) {
             </>
           )}
 
-          <div className="h-24" />
+          <div className="h-24 shrink-0" />
         </div>
       ) : (
         <div className="relative flex-1 overflow-hidden">

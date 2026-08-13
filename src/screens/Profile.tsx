@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useNav } from "../nav";
 import { Avatar, Row, Screen, TopBar } from "../components/ui";
-import { ME, TRAVELLERS } from "../data/travellers";
+import { ME } from "../data/travellers";
+import { focusTrip } from "../lib/trip";
 
 /**
  * The drawer of the app.
@@ -18,9 +19,19 @@ import { ME, TRAVELLERS } from "../data/travellers";
  */
 export function Profile() {
   const nav = useNav();
-  /* The demo cast minus the person holding the phone. Counting yourself as your
-     own travel companion is a small lie, and small lies are the ones that ship. */
-  const companions = TRAVELLERS.filter((t) => t.id !== ME.id).length;
+  /* Everybody named on one of the traveller's OWN trips, minus the person
+     holding the phone. It used to count the global demo cast, which is a figure
+     from the fixtures rather than from anything this account is doing — the same
+     invented number the header comment warns about, one row further down.
+     Counting yourself as your own travel companion is the other small lie, and
+     small lies are the ones that ship. */
+  const companions = new Set(
+    nav.trips.flatMap((t) => t.travellers).filter((id) => id !== ME.id),
+  ).size;
+
+  /* The same trip the home card and the deals tab are showing. 記帳 / 分帳 is
+     per-trip, so the row can only be live when there is one to open. */
+  const trip = focusTrip(nav.trips);
 
   return (
     <Screen>
@@ -35,9 +46,17 @@ export function Profile() {
       </div>
 
       <RowGroup title="這趟旅行">
-        {/* No「4 人」here: the two demo trips are solo (travellers: []), so a
-            head count taken from the global cast contradicts the trip itself. */}
-        <Row icon="🧾" label="記帳 / 分帳" />
+        {/* Live, and it has to be: 旅費 ships, and a 即將推出 stamp on a screen
+            the trip page opens two taps away is the drawer contradicting the
+            product. Only the trip's own name goes in the value — a total here
+            would be a second place for the money to be reported from, and the
+            two would disagree the moment a bill is entered. */}
+        <Row
+          icon="🧾"
+          label="記帳 / 分帳"
+          value={trip?.title}
+          onClick={trip ? () => nav.go({ k: "expenses", tripId: trip.id }) : undefined}
+        />
         {/* No「未下載」: the row has no onClick, so Row already stamps it
             即將推出 — and "not downloaded" next to "coming soon" reports the
             state of a feature that does not exist to have a state. It is the
@@ -72,7 +91,7 @@ export function Profile() {
         <Row
           icon="📊"
           label="Demo：商業模式"
-          onClick={() => nav.go({ k: "admin" })}
+          onClick={() => nav.go({ k: "business" })}
         />
         <Row icon="🎬" label="Demo 情境" onClick={() => nav.go({ k: "demo" })} />
       </RowGroup>
@@ -82,7 +101,7 @@ export function Profile() {
         <br />
         ResoMap 與各平台、商家皆無合作關係
       </p>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }

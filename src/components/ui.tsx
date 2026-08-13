@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useOverlayHost } from "./overlay";
 
 /* Small, boring primitives. Every one of them defaults to "no border, no
    shadow" — hierarchy comes from background, spacing and type size, so a screen
@@ -258,7 +260,12 @@ export function Segmented<T extends string>({
         <button
           key={i.id}
           onClick={() => onChange(i.id)}
-          className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+          /* The pill measures ~30px, because a segmented control drawn 44px tall
+             reads as a row of buttons. The tap target is pushed out past the
+             visual with a pseudo-element instead — the same trick Chip and Tabs
+             use, and the reason this control was the one place in the app you
+             could miss with a thumb. */
+          className={`relative rounded-full px-4 py-1.5 text-[13px] font-semibold transition after:absolute after:inset-x-0 after:-inset-y-[7px] after:content-[''] ${
             i.id === value ? "bg-bg text-ink shadow-[0_1px_3px_rgba(0,0,0,.08)]" : "text-ink-3"
           }`}
         >
@@ -303,11 +310,18 @@ export function Sheet({
   title?: string;
   children: ReactNode;
 }) {
+  const host = useOverlayHost();
   if (!open) return null;
-  /* Absolute against the shell, which is why sheets are handed to AppShell's
-     `overlay` slot rather than rendered inside a screen: from there this covers
-     the tab bar too, instead of leaving it lit and tappable behind a modal. */
-  return (
+
+  /* Absolute against the shell, not against the screen. The screen area is
+     clipped and sits *beside* the tab bar, so a sheet rendered where it was
+     declared gets cut off at the bottom edge and leaves the four tabs lit and
+     tappable behind its own scrim — a modal that is not modal.
+     Screens declare the sheet where it belongs in the code and it renders where
+     it belongs on the glass; App.tsx's `overlay` slot stays the right answer for
+     the app-wide sheets it already owns. The fallback keeps the component usable
+     if it is ever rendered outside a shell. */
+  const body = (
     <div className="absolute inset-0 z-40">
       <div className="rm-fade absolute inset-0 bg-black/35" onClick={onClose} />
       <div className="rm-up absolute inset-x-0 bottom-0 max-h-[86%] overflow-y-auto rounded-t-3xl bg-bg pb-6 no-scrollbar">
@@ -325,6 +339,8 @@ export function Sheet({
       </div>
     </div>
   );
+
+  return host ? createPortal(body, host) : body;
 }
 
 export function Empty({

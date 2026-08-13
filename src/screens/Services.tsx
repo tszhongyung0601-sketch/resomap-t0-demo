@@ -180,7 +180,7 @@ export function StayFlow({ destId }: { destId?: string }) {
       <div className="px-5 pb-6 pt-9">
         <Button onClick={() => setSearched(true)}>查看住宿</Button>
       </div>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
@@ -286,7 +286,7 @@ function StayResults({
           : `${destName}在 Demo 裡還沒有住宿資料，示意價格取自其他城市，實際價格以平台為準。`}
         {AFFILIATE_DISCLOSURE}
       </Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
@@ -429,7 +429,7 @@ function ModeFlow({
       </div>
 
       <Note>示意價格，實際價格以平台為準。{AFFILIATE_DISCLOSURE}</Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
@@ -522,7 +522,7 @@ export function ServiceFlow({ id }: { id: ServiceId }) {
       )}
 
       <Note>{AFFILIATE_DISCLOSURE}</Note>
-      <div className="h-24" />
+      <div className="h-24 shrink-0" />
     </Screen>
   );
 }
