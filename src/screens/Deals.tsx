@@ -78,6 +78,12 @@ export function Deals({ destId }: { destId: string | null }) {
 
   const reason = useMemo(() => makeReason(nav.trips, destId), [nav.trips, destId]);
 
+  /* App passes the focused trip's destination and nothing else, so a name here
+     means a real trip to that city exists — the heading is allowed to say 你的.
+     Without one it falls back to the tab's own words. Never 熱門優惠: nothing in
+     this dataset measures how many people bought anything. */
+  const city = destId ? dest(destId)?.name ?? null : null;
+
   /* Only 為你推薦 splits. On a category tab every card is there because the
      traveller asked for that category, and a reason line would be restating
      the tab they just tapped. */
@@ -96,6 +102,18 @@ export function Deals({ destId }: { destId: string | null }) {
       />
 
       <div className="px-5 pt-4">
+        {/* The ordering rule, said once, in the traveller's words. A list that
+            claims to be "為你推薦" and then never says on what basis is asking
+            to be read as paid placement. Only the three things that genuinely
+            move a card are named — city, added places, and the tail being cut. */}
+        {tab === "reco" && (
+          <p className="pb-4 text-[13px] leading-relaxed text-ink-3">
+            {city
+              ? "跟著你的行程排：你要去的城市在前，已經加入的地點排最上面，其他城市的優惠不會出現。"
+              : "目前沒有行程可以參考，這裡先照分類排列。"}
+          </p>
+        )}
+
         {tab === "local" && (
           <p className="pb-3 text-[13px] leading-relaxed text-ink-3">
             在地商家優惠還沒有開放。這裡先讓你看見方向，目前還不能使用。
@@ -108,7 +126,9 @@ export function Deals({ destId }: { destId: string | null }) {
           <Empty icon="🏷" text="這個分類目前沒有可以看的優惠" />
         ) : split ? (
           <>
-            <h2 className="pb-3 text-[17px] font-bold text-ink">適合你的旅程</h2>
+            <h2 className="pb-3 text-[17px] font-bold text-ink">
+              {city ? `你的${city}行程可能用得到` : "為你推薦"}
+            </h2>
             <div className="space-y-2.5">
               {forYou.map(({ d, why }) => (
                 <ReasonedCard key={d.id} deal={d} why={why} onOpen={nav.openDeal} />

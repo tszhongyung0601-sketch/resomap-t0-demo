@@ -1,511 +1,369 @@
-import {
-  ADAPTS,
-  AFFILIATE_DISCLOSURE,
-  HOME_SERVICES,
-  ME,
-  OVERSEAS_DESTINATIONS,
-  REGIONS,
-  STORIES,
-  TW_DESTINATIONS,
-  dest,
-  poi,
-  poisForDest,
-  poisWithStory,
-  relevantDeals,
-  storiesForDest,
-  story,
-} from "../data";
-import { DealCard } from "../components/DealCard";
-import {
-  Avatar,
-  Button,
-  Card,
-  Chip,
-  Headphones,
-  Note,
-  Screen,
-  Section,
-  StoryBadge,
-  Tag,
-  Thumb,
-} from "../components/ui";
-import { distance, walkMin } from "../lib/geo";
+import { ME, STORIES, TW_DESTINATIONS, poi, storiesForDest } from "../data";
+import { Cover } from "../components/Cover";
+import { Avatar, Button, Card, Headphones, Screen } from "../components/ui";
 import { useNav } from "../nav";
-import { COUNTRY_LABELS } from "../types";
-import type { Adapt, ServiceId, Stop, Story, Trip } from "../types";
+import type { Destination, Story, Trip } from "../types";
 
 /**
- * Home, and it changes shape three times.
+ * Home, in five sections.
  *
- * No trip: the screen asks one question — where do you want to go. A trip
- * booked: that trip sits above the inspiration, because the thing you already
- * committed to outranks the thing you might. A trip happening right now:
- * inspiration disappears entirely. Somebody standing in 台南 with two hours
- * before dinner is not shopping for Seoul.
+ * It used to carry eight, and three of those were the same kind of thing:
+ * more places to look at, stacked under the places you were already looking at.
+ * What is left answers the two questions somebody actually opens this app with
+ * — "where am I going next" and "where could I go" — plus the doors that follow
+ * from having answered them.
+ *
+ * There is exactly one orange button on this screen, and which one it is
+ * depends on whether a trip exists. With a trip, the trip owns it; without one,
+ * the planner does.
  */
 export function Explore({ trips }: { trips: Trip[] }) {
-  const ongoing = trips.find((t) => t.phase === "ongoing");
-  const planned = trips.find((t) => t.phase !== "ongoing");
-  const here = ongoing ? dest(ongoing.destId)?.name : undefined;
-  /* The city the home screen is currently about — what the shortcuts and the
-     story rail lean towards. Undefined is fine: every one of them works
-     without it. */
-  const focus = (ongoing ?? trips[0])?.destId;
-  /* Picked once, here, because two sections downstream both depend on it: the
-     story rail renders it and 你可能會喜歡 has to avoid it. Choosing
-     independently put 龍山寺 and 九份 on the same screen twice, one rail
-     apart, which reads as padding rather than as two recommendations. */
-  const rail = storyRail(focus);
+  const trip = focusTrip(trips);
+  const destId = trip?.destId;
+  const rail = storyRail(destId);
 
   return (
     <Screen>
-      <Header />
-
-      <h1 className="px-5 pt-3 text-[26px] font-bold leading-tight text-ink">
-        {ongoing ? (here ? `今天在${here}` : "今天的行程") : "想去哪裡走走？"}
-      </h1>
-
-      {ongoing ? (
-        <>
-          <ActiveTrip trip={ongoing} />
-          {/* Where I am now, before what I could buy. The service grid holds
-              five booking doors; somebody mid-trip is answering "what next",
-              and putting 機票 above 今天可以順路 answers a question they are
-              not asking. */}
-          <NearbyToday trip={ongoing} />
-          <StoryPlaces rail={rail} />
-          <Services destId={focus} />
-          <Offers destId={ongoing.destId} />
-        </>
-      ) : (
-        <>
-          <SearchEntry />
-          {planned && <PlannedTrip trip={planned} />}
-          <Services destId={focus} />
-          <TaiwanCities />
-          <Regions />
-          <MightLike exclude={rail} />
-          <StoryPlaces rail={rail} />
-          <Overseas />
-          {/* Last, and after the inspiration rather than wedged between two of
-              them. The commercial section is the one thing on this screen
-              nobody opened the app for. */}
-          <Offers destId={null} />
-        </>
-      )}
-
+      <Hero hasTrip={Boolean(trip)} />
+      {trip ? <NextTrip trip={trip} /> : <NoTrip />}
+      <Destinations />
+      <Needs destId={destId} />
+      <StoryPlaces rail={rail} />
       <div className="h-24" />
     </Screen>
   );
 }
 
-/* ------------------------------------------------------------------ chrome */
+/* --------------------------------------------------------------- 1 · hero */
 
-function Header() {
+function Hero({ hasTrip }: { hasTrip: boolean }) {
   const nav = useNav();
   return (
-    <div className="flex items-center gap-2 px-5 pt-4">
-      <span className="grid size-7 place-items-center rounded-lg bg-brand text-[13px] font-black text-white">
-        R
-      </span>
-      <span className="text-[16px] font-bold text-ink">ResoMap</span>
-      {/* No bell. There is no notification surface behind it, and a control that
-          does nothing is worse than an absent one — it teaches people the app
-          ignores them. It comes back when there is something to open. */}
-      <div className="ml-auto flex items-center">
+    <>
+      {/* No bell. There is no notification surface behind it, and a control
+          that does nothing is worse than an absent one. */}
+      <div className="flex items-center gap-2 px-5 pt-4">
+        <span className="grid size-7 place-items-center rounded-lg bg-brand text-[13px] font-black text-white">
+          R
+        </span>
+        <span className="text-[16px] font-bold text-ink">ResoMap</span>
         <button
           aria-label="我的"
-          onClick={() => nav.tab("profile")}
-          className="grid size-11 place-items-center rounded-full active:bg-surface"
+          onClick={() => nav.go({ k: "profile" })}
+          className="ml-auto grid size-11 place-items-center rounded-full active:bg-surface"
         >
           <Avatar name={ME.name} color={ME.color} initial={ME.initial} size={30} />
         </button>
       </div>
-    </div>
-  );
-}
 
-const EXAMPLES = ["台南兩天", "東京賞櫻", "宜蘭親子", "台北美食"];
+      <div className="px-5 pt-3">
+        <h1 className="text-[27px] font-bold leading-tight text-ink">今天想去哪？</h1>
+        <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">
+          讓 AI 幫你規劃，也陪你一路玩下去。
+        </p>
 
-function SearchEntry() {
-  const nav = useNav();
-  return (
-    <div className="px-5 pt-4">
-      <button
-        onClick={() => nav.go({ k: "search", q: "" })}
-        className="flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-4 text-left active:bg-surface-2"
-      >
-        <SearchIcon />
-        <span className="text-[14.5px] text-ink-3">搜尋城市、景點或想做的事情</span>
-      </button>
-      <div className="mt-2.5 flex gap-2 overflow-x-auto py-1 no-scrollbar">
-        {EXAMPLES.map((q) => (
-          <Chip key={q} onClick={() => nav.go({ k: "search", q })}>
-            {q}
-          </Chip>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Six doors, three to a row. Five things somebody might want on opening the app
- * plus one honest way to the rest — a nine-tile grid of everything the app can
- * do is a menu, and nobody reads a menu on a home screen.
- *
- * Six across 393px would leave each label under 60px wide, so 交通 and
- * 租車・接送 would either wrap or get clipped. Two rows of three keeps the
- * circles and the labels at the size they were.
- */
-function Services({ destId }: { destId?: string }) {
-  const nav = useNav();
-  const open = (id: ServiceId) => {
-    if (id === "plan") nav.go({ k: "create" });
-    else if (id === "tickets") nav.go({ k: "tickets", destId });
-    else if (id === "stay") nav.go({ k: "stay", destId });
-    else if (id === "transport") nav.go({ k: "transport", destId });
-    else if (id === "carrental") nav.go({ k: "carrental", destId });
-    else nav.moreServices();
-  };
-
-  return (
-    <div className="mt-6 grid grid-cols-3 gap-y-1 px-3">
-      {HOME_SERVICES.map((s) => (
         <button
-          key={s.id}
-          onClick={() => open(s.id)}
-          className="flex flex-col items-center gap-2 py-2 transition active:opacity-55"
+          onClick={() => nav.go({ k: "search", q: "" })}
+          className="mt-4 flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-4 text-left active:bg-surface-2"
         >
-          <span className="grid size-12 place-items-center rounded-full bg-surface text-[21px]">
-            {s.icon}
-          </span>
-          <span className="whitespace-nowrap text-[11.5px] text-ink-2">{s.label}</span>
+          <SearchIcon />
+          <span className="text-[14.5px] text-ink-3">搜尋城市、景點或想做的事</span>
         </button>
-      ))}
-    </div>
+
+        {/* Two doors, and the loud one moves. When a trip exists, the card
+            below is what the traveller came back for, so planning a new one
+            steps back to grey rather than competing with it. */}
+        <div className="mt-2.5 flex gap-2.5">
+          <div className="flex-1">
+            <Button
+              variant={hasTrip ? "secondary" : "primary"}
+              onClick={() => nav.go({ k: "create" })}
+            >
+              ✨ AI 幫我規劃
+            </Button>
+          </div>
+          <div className="flex-1">
+            {/* Not 探索附近. The app never asks for geolocation — MapView says so
+                itself, and MapTab labels its distances 距地圖中心 for exactly
+                this reason. Opened without a trip the map is the whole island at
+                zoom 7, which is not anybody's 附近. */}
+            <Button variant="secondary" onClick={() => nav.go({ k: "map" })}>
+              🗺 在地圖上找
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
-/* -------------------------------------------------------------- trip state */
+/* ---------------------------------------------------------- 2 · next trip */
 
-const todayStops = (trip: Trip): Stop[] =>
-  trip.days.find((d) => d.n === trip.today)?.tracks.flatMap((t) => t.stops) ?? [];
+/** Ongoing beats planned; among the planned, the one leaving soonest. */
+function focusTrip(trips: Trip[]): Trip | undefined {
+  const ongoing = trips.find((t) => t.phase === "ongoing");
+  if (ongoing) return ongoing;
+  /* `daysUntil` is optional, so a trip without one sorts to the back rather
+     than to the front — an unknown departure is not an imminent one. */
+  return [...trips].sort((a, b) => (a.daysUntil ?? 9999) - (b.daysUntil ?? 9999))[0];
+}
 
-/**
- * The stops on *this* traveller's track today.
- *
- * `todayStops` flattens every track, which is the right answer for "what is
- * already planned today" and the wrong one for "where am I going next": on a
- * split day the groups are in different districts, so `stops[0]`/`stops[1]`
- * would straddle two of them and report a walking time between two people.
- * A solo trip carries one track with an empty `who` and falls through here
- * unchanged.
- */
-const myStops = (trip: Trip): Stop[] => {
-  const day = trip.days.find((d) => d.n === trip.today);
-  if (!day) return [];
-  const mine =
-    day.tracks.find((t) => t.who.length === 0 || t.who.includes(ME.id)) ?? day.tracks[0];
-  return mine?.stops ?? [];
-};
+function when(trip: Trip): string {
+  if (trip.phase === "ongoing") return `今天是第 ${trip.today} 天`;
+  if (trip.daysUntil === undefined) return trip.dates;
+  if (trip.daysUntil === 0) return "今天出發";
+  if (trip.daysUntil === 1) return "明天出發";
+  return `還有 ${trip.daysUntil} 天出發`;
+}
 
-function PlannedTrip({ trip }: { trip: Trip }) {
+/** Distinct places on the itinerary — a lunch spot visited twice is one place. */
+const tripPois = (trip: Trip): string[] => [
+  ...new Set(trip.days.flatMap((d) => d.tracks.flatMap((t) => t.stops)).map((s) => s.poiId)),
+];
+
+function NextTrip({ trip }: { trip: Trip }) {
   const nav = useNav();
+  /* Only an ongoing trip has a "today" to start. `today` is a required field, so
+     every planned trip carries a 1 and the button typechecked happily — the
+     demo opens with no ongoing trip at all, which put 開始今天行程 on a trip
+     leaving in two days, directly under the line saying so. */
+  const started = trip.phase === "ongoing";
+  const places = tripPois(trip);
+  const withStory = places.filter((id) => poi(id).storyId).length;
   const day1 = trip.days.find((d) => d.n === 1) ?? trip.days[0];
-  const stops = (day1?.tracks.flatMap((t) => t.stops) ?? []).slice(0, 4);
+  const first = (day1?.tracks.flatMap((t) => t.stops) ?? []).slice(0, 4);
 
   return (
     <div className="mt-6 px-5">
       <Card className="p-4">
-        <div className="flex items-baseline gap-2">
-          <div className="min-w-0 flex-1 truncate text-[16.5px] font-bold text-ink">
-            {trip.title}
-          </div>
-          {trip.daysUntil !== undefined && (
-            <span className="num shrink-0 text-[12.5px] font-bold text-brand">
-              還有 {trip.daysUntil} 天出發
-            </span>
+        <div className="text-[12.5px] font-semibold text-ink-3">你的下一段旅程</div>
+        <div className="mt-1 truncate text-[20px] font-bold leading-tight text-ink">
+          {trip.title}
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-ink-3">
+          <span className="num">{when(trip)}</span>
+          <span aria-hidden>·</span>
+          <span className="num">{places.length} 個景點</span>
+          {withStory > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="num inline-flex items-center gap-1">
+                <Headphones size={11} />
+                {withStory} 個有語音故事
+              </span>
+            </>
           )}
         </div>
-        <div className="num mt-0.5 text-[13px] text-ink-3">{trip.dates}</div>
 
-        {stops.length > 0 && (
-          <div className="mt-3.5 flex items-center gap-2">
-            {stops.map((s) => {
-              const p = poi(s.poiId);
-              return <Thumb key={s.id} emoji={p.emoji} tint={p.tint} size={44} radius={12} />;
-            })}
+        {first.length > 0 && (
+          <div className="mt-3.5 flex gap-2">
+            {first.map((s) => (
+              <Cover
+                key={s.id}
+                poi={poi(s.poiId)}
+                height={56}
+                radius={12}
+                emoji={false}
+                className="flex-1"
+              />
+            ))}
           </div>
         )}
 
-        {/* The row only exists when the booking is missing, so its presence
-            already says so. Spelling it out as "還沒安排住宿" states a lack the
-            traveller did not ask about, and the door it opens leads to
-            affiliate links — which is what turns a useful shortcut into a nag.
-            The label names the thing; the button offers to do it. */}
-        {trip.needsStay && (
-          <div className="mt-3.5 flex items-center gap-3 border-t border-line pt-3.5">
-            <span className="flex-1 text-[13.5px] text-ink-2">住宿</span>
-            <button
-              onClick={() => nav.go({ k: "stay", destId: trip.destId })}
-              className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-bg px-4 text-[13px] font-bold text-ink active:bg-surface-2"
-            >
-              安排住宿
-            </button>
-          </div>
-        )}
-
-        {/* Deliberately not orange. The floating AI button is already the one
-            loud thing on this screen, and two competing oranges is how a home
-            screen stops telling you what to do next. */}
+        {/* Whichever it is, it is the one orange button on the screen — the hero
+            drops to grey the moment a trip exists. */}
         <div className="mt-4">
-          <Button variant="onCard" onClick={() => nav.go({ k: "trip", id: trip.id })}>
-            查看行程
-          </Button>
+          {started ? (
+            <Button onClick={() => nav.go({ k: "day", tripId: trip.id, n: trip.today })}>
+              開始今天行程
+            </Button>
+          ) : (
+            <Button onClick={() => nav.go({ k: "trip", id: trip.id })}>查看完整行程</Button>
+          )}
         </div>
-      </Card>
-    </div>
-  );
-}
-
-function ActiveTrip({ trip }: { trip: Trip }) {
-  const nav = useNav();
-  const stops = myStops(trip);
-  /* The traveller is standing at the first stop of the day, so the useful one
-     is the second. */
-  const at = stops[0];
-  const next = stops[1] ?? at;
-  const city = dest(trip.destId)?.name;
-  const nextPoi = next ? poi(next.poiId) : undefined;
-  const walk =
-    at && next && at !== next ? walkMin(distance(poi(at.poiId), poi(next.poiId))) : undefined;
-  const adapt = ADAPTS.find((a) => a.tripId === trip.id && a.day === trip.today);
-
-  return (
-    <div className="mt-4 px-5">
-      <Card className="p-4">
-        <div className="num text-[12.5px] font-semibold text-ink-3">
-          {city ? `${city} · ` : ""}Day {trip.today} / {trip.nights + 1}
-        </div>
-
-        {nextPoi && next && (
-          <div className="mt-3 flex items-center gap-3 rounded-xl bg-bg p-3">
-            <Thumb emoji={nextPoi.emoji} tint={nextPoi.tint} size={48} radius={13} />
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] text-ink-3">下一站</div>
-              <div className="truncate text-[16px] font-bold text-ink">{nextPoi.name}</div>
-            </div>
-            <div className="num shrink-0 text-[15px] font-bold text-ink">{next.at}</div>
+        {started && (
+          <div className="mt-1">
+            <Button variant="ghost" onClick={() => nav.go({ k: "trip", id: trip.id })}>
+              查看完整行程
+            </Button>
           </div>
         )}
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-3">
-          {walk !== undefined && <span className="num">步行 {walk} 分鐘</span>}
-          {walk !== undefined && <span aria-hidden>·</span>}
-          <span className="num">今天 33° 晴時多雲</span>
-          <Tag kind="demo" />
-        </div>
-
-        {/* Secondary, for the same reason as 查看行程 above: the floating
-            調整行程 button is already the one orange thing here. */}
-        <div className="mt-4">
-          <Button
-            variant="onCard"
-            onClick={() => nav.go({ k: "day", tripId: trip.id, n: trip.today })}
-          >
-            查看今日行程
-          </Button>
-        </div>
       </Card>
-
-      {adapt && <AdaptStrip trip={trip} adapt={adapt} />}
     </div>
   );
 }
 
 /**
- * One line, not a card. What changed today is worth interrupting for; it is not
- * worth a panel that pushes the itinerary off the screen.
+ * No trip, and no sales pitch about it. The planner is already the orange
+ * button in the hero; this row only has to say what the empty space means.
  */
-function AdaptStrip({ trip, adapt }: { trip: Trip; adapt: Adapt }) {
+function NoTrip() {
   const nav = useNav();
   return (
-    <button
-      onClick={() => nav.go({ k: "day", tripId: trip.id, n: trip.today })}
-      className="mt-2.5 flex w-full items-center gap-2.5 rounded-2xl bg-brand-wash px-4 py-3.5 text-left transition active:opacity-75"
-    >
-      <span className="text-[15px]">{adapt.icon}</span>
-      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">
-        {adapt.headline}
-      </span>
-      <span className="shrink-0 text-[12.5px] font-bold text-brand">看 AI 建議</span>
-    </button>
+    <div className="mt-6 px-5">
+      <Card onClick={() => nav.go({ k: "create" })} className="flex items-center gap-3 p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-bold text-ink">還沒有旅程</div>
+          <div className="mt-0.5 text-[13px] text-ink-3">讓 AI 幫你排一趟</div>
+        </div>
+        <span className="shrink-0 text-[15px] text-ink-3">›</span>
+      </Card>
+    </div>
   );
 }
 
-function NearbyToday({ trip }: { trip: Trip }) {
-  const nav = useNav();
-  const mine = myStops(trip);
-  const anchor = mine[1] ?? mine[0];
-  if (!anchor) return null;
+/* -------------------------------------------------------- 3 · destinations */
 
-  const from = poi(anchor.poiId);
-  /* Anchored where I am, but excluding anything any group already has today. */
-  const planned = new Set(todayStops(trip).map((s) => s.poiId));
-  const near = poisForDest(trip.destId)
-    .filter((p) => !planned.has(p.id))
-    .map((p) => ({ p, min: walkMin(distance(from, p)) }))
-    .sort((a, b) => a.min - b.min)
-    .slice(0, 3);
-
-  if (!near.length) return null;
-
-  return (
-    <Section title="今天可以順路">
-      <div className="px-5">
-        {near.map(({ p, min }) => {
-          const st = story(p.storyId);
-          return (
-            <button
-              key={p.id}
-              onClick={() => nav.go({ k: "poi", id: p.id })}
-              className="flex w-full items-center gap-3 border-b border-line py-3 text-left last:border-0 active:bg-surface"
-            >
-              <Thumb emoji={p.emoji} tint={p.tint} size={48} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="min-w-0 truncate text-[14.5px] font-semibold text-ink">
-                    {p.name}
-                  </span>
-                  {st && <StoryBadge minutes={st.minutes} label={false} />}
-                </div>
-                <div className="num truncate text-[12.5px] text-ink-3">
-                  {p.area} · 離{from.name}步行 {min} 分鐘
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </Section>
-  );
+/** Stable per-id jitter, so two cities never draw the identical horizon. */
+function seed(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h);
 }
 
-/* ----------------------------------------------------------- inspiration */
+/** Towards white when `t` is negative, towards ink when positive. */
+function tone(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const target = t < 0 ? 255 : 22;
+  const k = Math.abs(t);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) =>
+    Math.round(c + (target - c) * k),
+  );
+  return `rgb(${ch.join(",")})`;
+}
 
-function TaiwanCities() {
+/**
+ * A city's cover, built the way `Cover` builds a place's: layered gradients,
+ * every value derived from the record itself, nothing to load. Cover takes a
+ * Poi and a Destination is not one, so the scene is assembled here from the
+ * destination's own tint rather than by widening a shared component.
+ */
+function destScene(d: Destination): string {
+  const n = seed(d.id);
+  const horizon = 58 + (n % 13) - 6;
+  const sunX = 20 + (n % 60);
+  const hills = 34 + (n % 30);
+  const land = tone(d.tint, 0.24);
+  const deep = tone(d.tint, 0.46);
+  const sky = tone(d.tint, -0.4);
+  return [
+    `radial-gradient(52% 60% at ${sunX}% ${horizon - 20}%, rgba(255,241,214,.7) 0%, transparent 70%)`,
+    `radial-gradient(64% 30% at ${hills}% ${horizon}%, ${land} 0%, transparent 72%)`,
+    `radial-gradient(56% 24% at ${100 - hills}% ${horizon + 2}%, ${land} 0%, transparent 74%)`,
+    `linear-gradient(180deg, transparent ${horizon}%, ${land} ${horizon}%, ${deep} 100%)`,
+    `linear-gradient(180deg, ${sky} 0%, ${d.tint} ${horizon}%)`,
+  ].join(",");
+}
+
+function Destinations() {
   const nav = useNav();
   return (
-    <Section title="台灣熱門城市">
+    <section className="mt-8">
+      {/* Not 熱門. This rail is `DESTINATIONS.filter(country === "tw")` in the
+          order somebody typed them, and nothing in the repo measures popularity.
+          Refusing to fabricate a trip count on the card and then claiming the
+          ranking in the heading would be the same lie, one line higher. */}
+      <h2 className="mb-3 px-5 text-[17px] font-bold text-ink">探索台灣</h2>
       <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
         {TW_DESTINATIONS.map((d) => (
           <button
             key={d.id}
             onClick={() => nav.go({ k: "dest", id: d.id })}
-            className="w-[140px] shrink-0 text-left"
+            className="w-[168px] shrink-0 text-left"
           >
             <div
-              className="grid h-[96px] place-items-center rounded-2xl text-[34px]"
-              style={{ background: d.tint }}
+              className="relative h-[112px] overflow-hidden rounded-2xl"
+              style={{ background: destScene(d) }}
             >
-              {d.emoji}
+              <span className="absolute inset-0 grid place-items-center text-[36px]" aria-hidden>
+                {d.emoji}
+              </span>
             </div>
-            <div className="mt-2 text-[15px] font-bold text-ink">{d.name}</div>
-            {/* The tagline, not `tripCount`. "128 個行程" is a fabricated
-                popularity number in an app that ships three itineraries, and a
-                made-up count is the cheapest way to lose a reader who checks. */}
+            <div className="mt-2 text-[15.5px] font-bold text-ink">{d.name}</div>
+            {/* The tagline, not a trip count. A fabricated popularity number is
+                the cheapest way to lose a reader who checks. */}
             <div className="truncate text-[12.5px] text-ink-3">{d.tagline}</div>
           </button>
         ))}
       </div>
-    </Section>
+    </section>
   );
 }
 
-/**
- * 九份 is a destination in a traveller's head but not a city in the data, so a
- * tile here opens a search rather than pretending there is a destination page
- * behind it.
- */
-function Regions() {
-  const nav = useNav();
+/* --------------------------------------------------------------- 4 · needs */
+
+function NeedTile({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <Section title="熱門旅遊區域">
-      <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
-        {REGIONS.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => nav.go({ k: "search", q: r.name })}
-            className="w-[112px] shrink-0 text-left"
-          >
-            <div
-              className="grid h-[76px] place-items-center rounded-2xl text-[27px]"
-              style={{ background: r.tint }}
-            >
-              {r.emoji}
-            </div>
-            <div className="mt-1.5 text-[14px] font-bold text-ink">{r.name}</div>
-            <div className="text-[12px] text-ink-3">{r.near}</div>
-          </button>
-        ))}
-      </div>
-    </Section>
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 py-2 transition active:opacity-55"
+    >
+      <span className="grid size-12 place-items-center rounded-full bg-surface text-[21px]">
+        {icon}
+      </span>
+      <span className="whitespace-nowrap text-[12px] text-ink-2">{label}</span>
+    </button>
   );
 }
 
 /**
- * Places that are not already on the story rail four rows below.
+ * Four doors, no logos.
  *
- * Both sections draw from the same fifteen recorded places, so picking each
- * independently repeated two of four in the default state. A traveller who
- * meets 龍山寺 twice on one screen does not conclude the app has two reasons to
- * suggest it — they conclude the second rail is filler.
+ * Which platform a booking eventually goes through is a detail of the next
+ * screen, not something to advertise on the home screen of an app that has no
+ * agreement with any of them.
  */
-function MightLike({ exclude }: { exclude: Story[] }) {
+function Needs({ destId }: { destId?: string }) {
   const nav = useNav();
-  const skip = new Set(exclude.map((s) => s.poiId));
-  const picks = poisWithStory()
-    .filter((p) => !skip.has(p.id))
-    .slice(0, 4);
-  if (!picks.length) return null;
-
   return (
-    <Section title="你可能會喜歡">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-4 px-5">
-        {picks.map((p) => {
-          const city = dest(p.destId)?.name;
-          const st = story(p.storyId);
-          return (
-            <button
-              key={p.id}
-              onClick={() => nav.go({ k: "poi", id: p.id })}
-              className="text-left"
-            >
-              <div
-                className="grid h-[104px] place-items-center rounded-2xl text-[32px]"
-                style={{ background: p.tint }}
-              >
-                {p.emoji}
-              </div>
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="min-w-0 truncate text-[14.5px] font-bold text-ink">{p.name}</span>
-                {st && <StoryBadge minutes={st.minutes} label={false} />}
-              </div>
-              <div className="truncate text-[12.5px] text-ink-3">
-                {city ? `${city} · ${p.area}` : p.area}
-              </div>
-            </button>
-          );
-        })}
+    <section className="mt-8">
+      <h2 className="px-5 text-[17px] font-bold text-ink">旅程需要</h2>
+      {/* `destId` is the focused trip's, so its absence means there is no trip —
+          and telling somebody 行程排好了 when they have not planned anything is
+          the app describing a screen other than the one they are looking at. */}
+      <p className="mb-2 mt-1 px-5 text-[13px] text-ink-3">
+        {destId ? "行程排好了，剩下的也一起準備。" : "門票、住宿、交通，出發前一起準備。"}
+      </p>
+
+      <div className="grid grid-cols-4 px-4">
+        <NeedTile icon="🎟" label="門票" onClick={() => nav.go({ k: "tickets", destId })} />
+        <NeedTile icon="🏨" label="住宿" onClick={() => nav.go({ k: "stay", destId })} />
+        <NeedTile icon="🚆" label="交通" onClick={() => nav.go({ k: "transport", destId })} />
+        <NeedTile icon="🚗" label="租車" onClick={() => nav.go({ k: "carrental", destId })} />
       </div>
-    </Section>
+
+      <div className="px-5">
+        <button
+          onClick={nav.moreServices}
+          className="-mx-2 inline-flex min-h-11 items-center px-2 text-[13px] font-semibold text-ink-3 active:opacity-60"
+        >
+          其他服務（保險 · eSIM · 優惠券）
+        </button>
+      </div>
+    </section>
   );
 }
+
+/* ------------------------------------------------------------- 5 · stories */
 
 /**
  * Places worth listening to, ordered by how likely they are to be reachable:
- * the trip's city first, then the rest of Taiwan, then abroad.
+ * the focused trip's city first, then the rest of Taiwan, then abroad.
+ *
+ * Every story, not the first five. The rail used to stop at five and hand the
+ * rest to a 探索更多故事 link, but there is no route that lists stories — the
+ * link ran "故事" through the free-text search, which matches on POI name, area,
+ * about and city and therefore matched nothing at all. A rail scrolls; that is
+ * what it is for, and it beats a control whose only outcome was 找不到「故事」的結果.
  */
 function storyRail(destId?: string): Story[] {
   const twIds = new Set(TW_DESTINATIONS.map((d) => d.id));
@@ -514,12 +372,12 @@ function storyRail(destId?: string): Story[] {
   const rest = STORIES.filter((s) => !seen.has(s.id));
   const tw = rest.filter((s) => twIds.has(poi(s.poiId).destId));
   const abroad = rest.filter((s) => !twIds.has(poi(s.poiId).destId));
-  return [...here, ...tw, ...abroad].slice(0, 6);
+  return [...here, ...tw, ...abroad];
 }
 
 /**
  * Not "AI 語音導覽". Nobody wakes up wanting a feature — they want to know why
- * the wall in front of them is held together with oyster shells. So this rail
+ * the wall in front of them is held together with oyster shells. So the card
  * sells the place, and the headphone mark is the only hint that there is a
  * recording behind it.
  */
@@ -528,7 +386,12 @@ function StoryPlaces({ rail }: { rail: Story[] }) {
   if (!rail.length) return null;
 
   return (
-    <Section title="有故事的地方">
+    <section className="mt-8">
+      <div className="mb-3 flex items-center gap-1.5 px-5 text-ink">
+        <Headphones size={15} />
+        <h2 className="text-[17px] font-bold">有故事的地方</h2>
+      </div>
+
       <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
         {rail.map((s) => {
           const p = poi(s.poiId);
@@ -538,15 +401,7 @@ function StoryPlaces({ rail }: { rail: Story[] }) {
               onClick={() => nav.go({ k: "poi", id: s.poiId })}
               className="w-[150px] shrink-0 text-left"
             >
-              <div
-                className="relative grid h-[104px] place-items-center rounded-2xl text-[34px]"
-                style={{ background: p.tint }}
-              >
-                {p.emoji}
-                <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-bg/80 text-ink-2">
-                  <Headphones size={12} />
-                </span>
-              </div>
+              <Cover poi={p} height={96} radius={16} />
               <div className="mt-2 truncate text-[14.5px] font-bold text-ink">{p.name}</div>
               <div className="truncate text-[12.5px] text-ink-3">{s.hook}</div>
               <div className="mt-1 flex items-center gap-1 text-ink-3">
@@ -557,52 +412,7 @@ function StoryPlaces({ rail }: { rail: Story[] }) {
           );
         })}
       </div>
-    </Section>
-  );
-}
-
-function Overseas() {
-  const nav = useNav();
-  return (
-    <Section title="海外熱門">
-      <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
-        {OVERSEAS_DESTINATIONS.map((d) => (
-          <button
-            key={d.id}
-            onClick={() => nav.go({ k: "dest", id: d.id })}
-            className="w-[112px] shrink-0 text-left"
-          >
-            <div
-              className="grid h-[76px] place-items-center rounded-2xl text-[27px]"
-              style={{ background: d.tint }}
-            >
-              {d.emoji}
-            </div>
-            <div className="mt-1.5 text-[14px] font-bold text-ink">{d.name}</div>
-            <div className="text-[12px] text-ink-3">{COUNTRY_LABELS[d.country]}</div>
-          </button>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function Offers({ destId }: { destId: string | null }) {
-  const nav = useNav();
-  const deals = relevantDeals(destId, 3);
-  /* No deals means no section. Rendering the heading over an empty list leaves
-     a commercial title and a disclosure footnote advertising nothing. */
-  if (!deals.length) return null;
-
-  return (
-    <Section title="與你相關的優惠">
-      <div className="space-y-2 px-5">
-        {deals.map((d) => (
-          <DealCard key={d.id} deal={d} onOpen={nav.openDeal} />
-        ))}
-      </div>
-      <Note>{AFFILIATE_DISCLOSURE}</Note>
-    </Section>
+    </section>
   );
 }
 

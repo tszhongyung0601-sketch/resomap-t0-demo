@@ -399,6 +399,64 @@ export interface Adapt {
   cta: string;
 }
 
+/* ------------------------------------------------- collaborative planning */
+
+export type Pace = "easy" | "normal" | "packed";
+
+export const PACE_LABELS: Record<Pace, string> = {
+  easy: "輕鬆",
+  normal: "適中",
+  packed: "特種兵",
+};
+
+/**
+ * What one traveller wants out of the trip.
+ *
+ * Short on purpose. A form your friends will not finish is worth less than no
+ * form at all, and the whole feature depends on four people completing it in a
+ * LINE group at eleven at night.
+ */
+export interface Preference {
+  interests: InterestId[];
+  pace: Pace;
+  /** 1–3, rendered as $ / $$ / $$$. */
+  budget: 1 | 2 | 3;
+  /** Free text: the thing somebody insists on is often not in the POI set. */
+  mustGo: string;
+  avoid: string;
+}
+
+export interface RoomMember {
+  id: TravellerId;
+  /** Absent until they have actually filled it in. */
+  preference?: Preference;
+}
+
+export type VoteValue = "yes" | "maybe" | "no";
+
+export const VOTE_LABELS: Record<VoteValue, string> = {
+  yes: "想去",
+  maybe: "都可以",
+  no: "不想去",
+};
+
+export interface Vote {
+  poiId: string;
+  who: TravellerId;
+  value: VoteValue;
+}
+
+export interface Room {
+  id: string;
+  destId: string;
+  title: string;
+  dates: string;
+  members: RoomMember[];
+  /** The shortlist everybody is voting on. */
+  poiIds: string[];
+  votes: Vote[];
+}
+
 /* ----------------------------------------------------------------- events */
 
 export type EventName =
@@ -421,7 +479,12 @@ export type EventName =
   | "affiliate_outbound"
   | "mock_booking"
   | "story_open"
-  | "directions_open";
+  | "directions_open"
+  | "room_view"
+  | "pref_saved"
+  | "vote_cast"
+  | "consensus_view"
+  | "consensus_accept";
 
 export interface TrackedEvent {
   name: EventName;

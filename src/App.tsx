@@ -3,7 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { AdaptCard } from "./components/AdaptCard";
 import { OutboundSheet } from "./components/DealCard";
 import { ArrivalSheet, StoryPlayer } from "./components/Story";
-import { Button, Sheet, Thumb } from "./components/ui";
+import { Button, Sheet, Tag, Thumb } from "./components/ui";
 import {
   ADAPTS,
   HUALIEN_TRIP,
@@ -11,10 +11,9 @@ import {
   TOKYO_TRIP,
   dest,
   poi,
-  poisForDest,
 } from "./data";
 import { applyAdapt } from "./lib/adapt";
-import { distance, km } from "./lib/geo";
+import { distance } from "./lib/geo";
 import { stopSpeaking } from "./lib/speech";
 import { track } from "./lib/track";
 import { NavContext, type Nav, type Route, type Tab } from "./nav";
@@ -38,6 +37,7 @@ import {
 } from "./screens/Services";
 import { ProductDetail, Tickets } from "./screens/Tickets";
 import { Profile } from "./screens/Profile";
+import { Together, Prefs, Pool, ConsensusView } from "./screens/Together";
 import { AdminDemo } from "./screens/AdminDemo";
 import { DemoPanel } from "./screens/DemoPanel";
 import type { Deal, StoryLength, Trip } from "./types";
@@ -47,16 +47,6 @@ const INITIAL: Trip[] = [
   { ...HUALIEN_TRIP },
   { ...TOKYO_TRIP },
 ];
-
-/** What the floating button is for, right now. One value, two consumers. */
-type AiMode = "adjust" | "nearby" | "plan" | "inspire";
-
-const AI_LABEL: Record<AiMode, string> = {
-  adjust: "調整行程",
-  nearby: "附近推薦",
-  plan: "幫我排",
-  inspire: "問 AI",
-};
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("explore");
@@ -143,6 +133,14 @@ export default function App() {
         );
         track("poi_add", { poiId });
         say(`已加入 Day ${day}`);
+      },
+
+      adoptTrip: (tripId) => {
+        const demo = [TAINAN_TRIP, HUALIEN_TRIP, TOKYO_TRIP].find((t) => t.id === tripId);
+        if (!demo) return;
+        setTrips((l) => (l.some((t) => t.id === tripId) ? l : [{ ...demo }, ...l]));
+        setStack([{ k: "trip", id: tripId }]);
+        setTab("trips");
       },
 
       createTrip: (destId) => {
@@ -239,43 +237,6 @@ export default function App() {
    * "調整行程" while you are standing in the rain is a different product from one
    * that says "AI" everywhere and waits for you to think of something to type.
    */
-  /**
-   * The label and the sheet are the SAME decision, made once.
-   *
-   * They used to be computed separately and drifted apart: the button read
-   * 附近推薦 on the map while the sheet that opened was 現在怎麼調整？, because
-   * one branched on the tab and the other on whether a trip was running. A
-   * button that lies about what it does is worse than no button, and this app's
-   * whole claim is that the label follows the context — so context is resolved
-   * once, here, and both sides read the result.
-   */
-  const aiMode = useMemo<AiMode | null>(() => {
-    if (story || adapt) return null;
-    if (route && route.k !== "day") return null;
-
-    if (route?.k === "day") {
-      const t = trips.find((x) => x.id === route.tripId);
-      return t && ADAPTS.some((a) => a.tripId === t.id) ? "adjust" : "plan";
-    }
-    if (tab === "map") return "nearby";
-    if (tab === "explore") return ongoing ? "adjust" : "inspire";
-    if (tab === "trips") return ongoing ? "adjust" : trips.length ? "plan" : "inspire";
-    return null;
-  }, [route, tab, story, adapt, ongoing, trips]);
-
-  /** The trip the AI would be talking about, if it is talking about one. */
-  const aiTrip = useMemo(() => {
-    if (route?.k === "day") return trips.find((t) => t.id === route.tripId) ?? ongoing;
-    return ongoing;
-  }, [route, trips, ongoing]);
-
-  const ai = useMemo(
-    () =>
-      aiMode
-        ? { label: AI_LABEL[aiMode], onClick: () => setAiSheet(true) }
-        : null,
-    [aiMode],
-  );
 
   /* ----------------------------------------------------------- the screen */
 
@@ -292,6 +253,11 @@ export default function App() {
   else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
   else if (route?.k === "admin") screen = <AdminDemo />;
+  else if (route?.k === "map") screen = <MapTab destId={focusTrip?.destId ?? null} />;
+  else if (route?.k === "profile") screen = <Profile />;
+  else if (route?.k === "prefs") screen = <Prefs />;
+  else if (route?.k === "pool") screen = <Pool />;
+  else if (route?.k === "consensus2") screen = <ConsensusView />;
   else if (route?.k === "travellers") screen = <Travellers tripId={route.tripId} />;
   else if (route?.k === "consensus") screen = <Consensus tripId={route.tripId} />;
   else if (route?.k === "alternatives") screen = <Alternatives tripId={route.tripId} />;
@@ -317,6 +283,7 @@ export default function App() {
         <DayPlan
           trip={t}
           day={route.n}
+          onAdjust={() => setAiSheet(true)}
           banner={
             a && a.tripId === t.id && a.day === route.n ? (
               <AdaptCard
@@ -333,17 +300,14 @@ export default function App() {
       ) : null;
   } else {
     switch (tab) {
-      case "map":
-        screen = <MapTab destId={focusTrip?.destId ?? null} />;
+      case "together":
+        screen = <Together />;
         break;
       case "trips":
         screen = <Trips trips={trips} />;
         break;
       case "deals":
         screen = <Deals destId={focusTrip?.destId ?? null} />;
-        break;
-      case "profile":
-        screen = <Profile />;
         break;
       default:
         screen = <Explore trips={trips} />;
@@ -388,19 +352,9 @@ export default function App() {
       <AiSheet
         open={aiSheet}
         onClose={() => setAiSheet(false)}
-        mode={aiMode}
-        trip={aiTrip}
-        destId={focusTrip?.destId ?? null}
+        trip={ongoing ?? focusTrip}
         used={usedAdapts}
         onAdapt={fireAdapt}
-        onCreate={() => {
-          setAiSheet(false);
-          nav.go({ k: "create" });
-        }}
-        onPoi={(id) => {
-          setAiSheet(false);
-          nav.go({ k: "poi", id });
-        }}
       />
 
       {toast && (
@@ -415,7 +369,7 @@ export default function App() {
 
   return (
     <NavContext.Provider value={nav}>
-      <AppShell tab={tab} onTab={nav.tab} showNav={!hideNav} ai={ai} overlay={overlay}>
+      <AppShell tab={tab} onTab={nav.tab} showNav={!hideNav} overlay={overlay}>
         {screen}
       </AppShell>
     </NavContext.Provider>
@@ -425,147 +379,96 @@ export default function App() {
 /* ------------------------------------------------------------- AI sheet */
 
 /**
- * Options, not a chat box.
+ * "What happened?" — the in-trip AI, as a list of things that actually happen.
  *
- * Every entry here is a thing the app can actually do right now, phrased as the
- * traveller would say it. A text field would be easier to build and worse to
- * use: it puts the burden of knowing what to ask onto somebody who is standing
- * on a street corner.
+ * A text box would be less code and worse: somebody standing in the rain with a
+ * dead afternoon does not want to compose a prompt. Every row here is a
+ * situation a traveller recognises instantly, and the two the demo can genuinely
+ * replan are wired to the real adapt engine. The rest say so rather than going
+ * quietly missing — a person who is running late needs to see the app knows
+ * "late" is a thing, even before it can fix it.
  */
+const SITUATION_ICON: Record<string, string> = {
+  RAIN: "🌧️",
+  SLEEP: "😴",
+  FOOD: "🍜",
+  TIRED: "😫",
+  CLOCK: "⏰",
+  PIN: "📍",
+  CHAT: "💬",
+};
+
+const SITUATIONS: { icon: string; label: string; trigger?: "rain" | "late" }[] = [
+  { icon: "RAIN", label: "下雨了", trigger: "rain" },
+  { icon: "SLEEP", label: "起晚了", trigger: "late" },
+  { icon: "FOOD", label: "想先吃東西" },
+  { icon: "TIRED", label: "太累了" },
+  { icon: "CLOCK", label: "時間不夠" },
+  { icon: "PIN", label: "想去附近" },
+  { icon: "CHAT", label: "直接告訴 AI" },
+];
+
 function AiSheet({
   open,
   onClose,
-  mode,
   trip,
-  destId,
   used,
   onAdapt,
-  onCreate,
-  onPoi,
 }: {
   open: boolean;
   onClose: () => void;
-  mode: AiMode | null;
-  /** The trip this sheet is about, when it is about one. */
+  /** The trip being adjusted. */
   trip: Trip | null;
-  /** Where the map is currently looking. */
-  destId: string | null;
-  /** Scenarios already applied — offering them twice double-shifts the day. */
+  /** Scenarios already applied — re-firing one would shift the day twice. */
   used: string[];
   onAdapt: (id: string) => void;
-  onCreate: () => void;
-  onPoi: (id: string) => void;
 }) {
-  if (!open || !mode) return null;
+  if (!open) return null;
 
-  if (mode === "adjust" && trip) {
-    const mine = ADAPTS.filter((a) => a.tripId === trip.id && !used.includes(a.id));
-    return (
-      <Sheet open onClose={onClose} title="現在怎麼調整？">
-        <div className="px-5 pb-3">
-          <p className="text-[13.5px] leading-relaxed text-ink-3">
-            ResoMap 會看目前時間、位置與天氣，只在真的需要時才動你的行程。
-          </p>
-          <div className="mt-4 space-y-2.5">
-            {mine.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => onAdapt(a.id)}
-                className="w-full rounded-2xl bg-surface p-4 text-left active:bg-surface-2"
-              >
-                <div className="text-[15px] font-semibold text-ink">
-                  {a.icon} {a.trigger === "late" ? "我們晚了" : "天氣不好"}
-                </div>
-                <div className="mt-0.5 text-[12.5px] text-ink-3">
-                  {a.trigger === "late" ? "重排今天剩下的行程" : "換成室內的替代方案"}
-                </div>
-              </button>
-            ))}
-            {mine.length === 0 && (
-              <p className="rounded-2xl bg-surface p-4 text-[13.5px] leading-relaxed text-ink-3">
-                今天沒有需要調整的地方。ResoMap 只在真的有狀況時才會主動出現。
-              </p>
-            )}
-          </div>
-          <div className="mt-3">
-            <Button variant="ghost" onClick={onClose}>
-              先不用
-            </Button>
-          </div>
-        </div>
-      </Sheet>
-    );
-  }
-
-  if (mode === "nearby") {
-    /* Whatever the map is actually showing. Hardcoding 台南 here meant tapping
-       附近推薦 on a map of 花蓮 recommended 赤崁樓 — the one place in the app
-       that claims to know where you are, getting it wrong on the first tap. */
-    const d = destId ? dest(destId) : null;
-    const near = destId
-      ? [...poisForDest(destId)]
-          .sort(
-            (a, b) =>
-              distance({ lat: d?.lat ?? a.lat, lng: d?.lng ?? a.lng }, a) -
-              distance({ lat: d?.lat ?? b.lat, lng: d?.lng ?? b.lng }, b),
-          )
-          .slice(0, 3)
-      : [];
-
-    return (
-      <Sheet open onClose={onClose} title="附近推薦">
-        <div className="px-5 pb-3">
-          <p className="text-[13.5px] leading-relaxed text-ink-3">
-            {d ? `照現在的地圖範圍，${d.name}這三個最順路。` : "先選一個地方，再看附近有什麼。"}
-          </p>
-          <div className="mt-3.5 space-y-1">
-            {near.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => onPoi(p.id)}
-                className="flex w-full items-center gap-3 rounded-2xl px-1 py-2.5 text-left active:bg-surface"
-              >
-                <Thumb emoji={p.emoji} tint={p.tint} size={44} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14.5px] font-semibold text-ink">
-                    {p.name}
-                  </div>
-                  <div className="text-[12.5px] text-ink-3">
-                    {p.area}
-                    {d && ` · 距地圖中心 ${km(distance(d, p))}`}
-                  </div>
-                </div>
-                <span className="text-ink-3">›</span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-3">
-            <Button variant="ghost" onClick={onClose}>
-              關閉
-            </Button>
-          </div>
-        </div>
-      </Sheet>
-    );
+  /* Which situations this trip can genuinely act on right now. */
+  const live = new Map<string, string>();
+  for (const a of ADAPTS) {
+    if (used.includes(a.id)) continue;
+    if (trip && a.tripId !== trip.id) continue;
+    if (!live.has(a.trigger)) live.set(a.trigger, a.id);
   }
 
   return (
-    <Sheet open onClose={onClose} title="想去哪裡走走？">
+    <Sheet open onClose={onClose} title="發生什麼事？">
       <div className="px-5 pb-3">
         <p className="text-[13.5px] leading-relaxed text-ink-3">
-          說一個大概就好，其他 ResoMap 來想。
+          ResoMap 會看目前時間、位置與天氣，直接給你一份改好的行程。
         </p>
-        <div className="mt-4 space-y-2.5">
-          {["我有三天假，想吃東西", "這個週末，不想開車", "帶小孩，走不遠"].map((s) => (
-            <button
-              key={s}
-              onClick={onCreate}
-              className="w-full rounded-2xl bg-surface p-4 text-left text-[15px] font-semibold text-ink active:bg-surface-2"
-            >
-              {s}
-            </button>
-          ))}
+
+        <div className="mt-4 space-y-2">
+          {SITUATIONS.map((s) => {
+            const id = s.trigger ? live.get(s.trigger) : undefined;
+            const ready = Boolean(id);
+            return (
+              <button
+                key={s.label}
+                disabled={!ready}
+                onClick={() => id && onAdapt(id)}
+                className={`flex min-h-[52px] w-full items-center gap-3 rounded-2xl px-4 text-left ${
+                  ready ? "bg-surface active:bg-surface-2" : "bg-surface/60"
+                }`}
+              >
+                <span className={`text-[19px] ${ready ? "" : "opacity-40"}`}>
+                  {SITUATION_ICON[s.icon]}
+                </span>
+                <span
+                  className={`flex-1 text-[15px] font-semibold ${
+                    ready ? "text-ink" : "text-ink-3"
+                  }`}
+                >
+                  {s.label}
+                </span>
+                {!ready && <Tag kind="later" />}
+              </button>
+            );
+          })}
         </div>
+
         <div className="mt-3">
           <Button variant="ghost" onClick={onClose}>
             先不用

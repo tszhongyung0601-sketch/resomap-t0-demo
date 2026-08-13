@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AFFILIATE_DISCLOSURE, POIS, dealsForPoi, poi } from "../data";
 import { story } from "../data/stories";
+import { AiSceneNote, Cover } from "../components/Cover";
 import { DealCard } from "../components/DealCard";
 import { Button, Headphones, Note, Screen, Section, StoryBadge, Thumb } from "../components/ui";
 import { distance, km } from "../lib/geo";
@@ -8,7 +9,70 @@ import { dur } from "../lib/adapt";
 import { openDirections } from "../lib/maps";
 import { track } from "../lib/track";
 import { useNav } from "../nav";
-import { POI_KIND_LABELS } from "../types";
+import { POI_KIND_LABELS, type Story } from "../types";
+
+const THIS_YEAR = new Date().getFullYear();
+
+/* The guides write their dates in Chinese numerals because they go through
+   speech synthesis — 一六六二年, not 1662年 — so that is what has to be read
+   back out. 千 and 百 are deliberately not in the class: it keeps 三百五十多年
+   and 乾隆五十三年 from being mistaken for calendar years. */
+const CN_DIGIT: Record<string, string> = {
+  "〇": "0",
+  "○": "0",
+  "零": "0",
+  "一": "1",
+  "二": "2",
+  "三": "3",
+  "四": "4",
+  "五": "5",
+  "六": "6",
+  "七": "7",
+  "八": "8",
+  "九": "9",
+};
+const YEAR_RE = /[〇○零一二三四五六七八九]{3,4}(?=年)/g;
+
+function earliestYear(text: string): number | null {
+  let min: number | null = null;
+  for (const m of text.matchAll(YEAR_RE)) {
+    const n = Number([...m[0]].map((c) => CN_DIGIT[c]).join(""));
+    if (!Number.isFinite(n) || n < 100 || n > THIS_YEAR) continue;
+    if (min === null || n < min) min = n;
+  }
+  return min;
+}
+
+const HUNDREDS = ["", "一", "兩", "三", "四", "五", "六", "七", "八", "九"];
+
+/** Whole hundreds only. The label is never allowed a figure finer than that. */
+function cnHundreds(h: number): string {
+  if (h < 10) return `${HUNDREDS[h]}百`;
+  const rest = h % 10;
+  return `${HUNDREDS[Math.floor(h / 10)]}千${rest ? `${HUNDREDS[rest]}百` : ""}`;
+}
+
+/**
+ * How far back the generated scene is allowed to say it is looking.
+ *
+ * The number comes out of the guide's own text — every ResoMap story is written
+ * with dates in it — floored to the century so the line under-claims rather
+ * than over-claims: 赤崁樓's 一六五三 reads 三百, not 四百. A story whose oldest
+ * date is inside the last century gets no scene at all, which is why 駁二 and
+ * 松園別館 do not have one. Inventing a century for a place we cannot date is
+ * exactly the kind of confident nonsense these guides were written against.
+ */
+function sceneEra(st: Story, destId: string, area: string): string | null {
+  const y = earliestYear(`${st.title}${st.short}${st.body}`);
+  if (y !== null) {
+    const h = Math.floor((THIS_YEAR - y) / 100);
+    return h >= 1 ? cnHundreds(h) : null;
+  }
+  /* The two heritage places old enough that the century is not in question
+     even on the day a guide happens not to print a date. Everywhere else gets
+     no scene rather than a made-up one. */
+  return destId === "tainan" || area.startsWith("淡水") ? "三百" : null;
+}
 
 /**
  * One place, one decision: put it in the itinerary.
@@ -61,6 +125,7 @@ export function Poi({ id }: { id: string }) {
   if (!p) return null;
 
   const st = story(p.storyId);
+  const era = st ? sceneEra(st, p.destId, p.area) : null;
 
   /* Two blocks, two promises: a ticket only where the venue genuinely sells
      admission, a local offer only ever as 即將推出. Filtering by category is
@@ -87,11 +152,11 @@ export function Poi({ id }: { id: string }) {
 
   return (
     <Screen>
-      <div
-        className="relative grid h-[220px] shrink-0 place-items-center text-[64px]"
-        style={{ background: p.tint }}
-      >
-        {p.emoji}
+      {/* A generated landscape rather than a flat tint: the page now opens on
+          something shaped like a place. Square corners — it runs to the edges
+          of the screen, so a radius here would only cut the status bar. */}
+      <div className="relative shrink-0">
+        <Cover poi={p} height={220} radius={0} emoji />
         <button
           onClick={() => nav.back()}
           aria-label="返回"
@@ -162,6 +227,23 @@ export function Poi({ id }: { id: string }) {
               >
                 <Headphones size={13} />聽 {st.minutes} 分鐘
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* What the story is describing, as a picture.
+            `AiSceneNote` is not decoration and not optional: this is the one
+            image on the page a traveller has no way of checking, so it says on
+            the image itself that no camera was ever here. The emoji is off —
+            a place marker sitting on top of a scene turns it back into a
+            thumbnail. `era` gates the whole block, so a place whose guide never
+            names a century simply does not get one. */}
+        {st && era && (
+          <div className="mt-5">
+            <div className="text-[13px] text-ink-3">如果回到 {era} 年前……</div>
+            <div className="relative mt-2">
+              <Cover poi={p} height={140} radius={14} emoji={false} />
+              <AiSceneNote />
             </div>
           </div>
         )}

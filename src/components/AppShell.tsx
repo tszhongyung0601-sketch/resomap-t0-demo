@@ -1,37 +1,61 @@
 import { useEffect, useState, type ReactNode } from "react";
+import type { Tab } from "../nav";
 
-export type Tab = "explore" | "map" | "trips" | "deals" | "profile";
+/* iPhone 15/16 logical size, plus a bezel wide enough to read as a device.
+   Declared before the component because `measure` reads them on the very first
+   render, not just inside an effect. */
+const SCREEN_W = 393;
+const SCREEN_H = 852;
+const BEZEL = 13;
+
+/**
+ * How the shell should draw itself, from the window it is drawing into.
+ *
+ * One function for the first paint and every resize after it. Seeding the state
+ * with `useState(true)` instead meant a phone in a 400px window rendered a full
+ * desktop bezel for one frame before the effect corrected it — a visible flash
+ * of the wrong product on exactly the device the demo is shown on.
+ */
+function measure() {
+  const narrow = window.innerWidth < 520;
+  return {
+    /** Draw the fake device, i.e. we are on something that is not a phone. */
+    phone: !narrow,
+    /* The bezel adds to the height that has to fit on screen, so it is part of
+       the sum — otherwise the frame's bottom edge falls off the viewport. */
+    scale: narrow ? 1 : Math.min(1, (window.innerHeight - 40) / (SCREEN_H + BEZEL * 2)),
+  };
+}
 
 const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: "explore", label: "探索", icon: <Compass /> },
-  { id: "map", label: "地圖", icon: <Pin /> },
   { id: "trips", label: "行程", icon: <Route /> },
+  { id: "together", label: "一起規劃", icon: <People /> },
   { id: "deals", label: "優惠", icon: <TagIcon /> },
-  { id: "profile", label: "我的", icon: <Person /> },
 ];
 
 /**
- * Five tabs, and the AI is not one of them.
+ * Four tabs, and no floating AI button.
  *
- * Putting an assistant in the tab bar makes it a destination you have to
- * remember to visit, which is exactly wrong: the whole point is that it turns
- * up when the trip needs it. So it lives in one floating button whose label
- * changes with where you are — 問 AI on the home screen, 附近推薦 on the map,
- * 調整行程 mid-trip — and disappears entirely on screens that already end in a
- * decision.
+ * 地圖 was a way of finding a place rather than a place to go, and 我的 was a
+ * list of 即將推出 — both left the tab bar. What replaced them is the one thing
+ * the app is actually for: planning with other people.
+ *
+ * The floating assistant went too. One control with four different behaviours,
+ * parked on top of the content, taught nobody what it did. The AI now appears
+ * in the three specific moments it is useful, inside the screens that own those
+ * moments.
  */
 export function AppShell({
   tab,
   onTab,
   showNav,
-  ai,
   overlay,
   children,
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
   showNav: boolean;
-  ai: { label: string; onClick: () => void } | null;
   /**
    * Sheets, the story player, the toast.
    *
@@ -43,17 +67,16 @@ export function AppShell({
   overlay?: ReactNode;
   children: ReactNode;
 }) {
-  const [scale, setScale] = useState(1);
-  const [phone, setPhone] = useState(true);
+  const [{ scale, phone }, setFrame] = useState(measure);
 
   useEffect(() => {
-    const fit = () => {
-      const narrow = window.innerWidth < 520;
-      setPhone(!narrow);
-      /* The bezel adds to the height that has to fit on screen, so it is part
-         of the sum — otherwise the frame's bottom edge falls off the viewport. */
-      setScale(narrow ? 1 : Math.min(1, (window.innerHeight - 40) / (SCREEN_H + BEZEL * 2)));
-    };
+    /* Returning `prev` unchanged is what keeps a drag-resize from re-rendering
+       the whole app on every one of the hundred events it fires. */
+    const fit = () =>
+      setFrame((prev) => {
+        const next = measure();
+        return prev.phone === next.phone && prev.scale === next.scale ? prev : next;
+      });
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -63,34 +86,33 @@ export function AppShell({
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-bg">
       <div className="relative flex-1 overflow-hidden">{children}</div>
 
-      {ai && (
-        <button
-          onClick={ai.onClick}
-          className="absolute z-30 flex items-center gap-2 rounded-full bg-brand py-3.5 pl-4 pr-5 text-[14px] font-bold text-white shadow-[0_6px_20px_rgba(255,98,16,.35)] transition active:scale-[.97]"
-          style={{ right: 16, bottom: showNav ? 98 : 32 }}
-        >
-          <Sparkle />
-          {ai.label}
-        </button>
-      )}
-
       {showNav && (
-        /* pb leaves the home indicator its own strip, the way a phone's bottom
-           safe area does — without it the labels and the bar sit on top of each
-           other. */
-        <nav className="z-20 flex shrink-0 items-stretch border-t border-line bg-bg/95 pb-[20px] pt-1.5 backdrop-blur">
+        /* The bottom padding is the home indicator's own strip. 20px is what the
+           drawn bezel needs; on a real phone the strip is taller and the browser
+           knows how tall, so take whichever is bigger.
+           index.html ships `viewport-fit=cover`, which means iOS draws the page
+           *under* the gesture bar — without the env() the labels end up beneath
+           it, and the bottom row of the app is the part you cannot tap. On
+           desktop the inset is 0 and this is exactly the old 20px. */
+        <nav
+          aria-label="主要導覽"
+          className="z-20 flex shrink-0 items-stretch border-t border-line bg-bg/95 pb-[max(20px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur"
+        >
           {TABS.map((t) => {
             const on = t.id === tab;
             return (
               <button
                 key={t.id}
+                type="button"
                 onClick={() => onTab(t.id)}
-                className="flex flex-1 flex-col items-center gap-0.5 py-1"
-                aria-current={on}
+                /* min-h states the touch target instead of leaving it as a
+                   by-product of icon + label height. */
+                className="flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 py-1"
+                aria-current={on ? "page" : undefined}
               >
                 <span className={on ? "text-brand" : "text-ink-3"}>{t.icon}</span>
                 <span
-                  className={`text-[11px] font-semibold ${on ? "text-brand" : "text-ink-3"}`}
+                  className={`text-[12px] font-semibold ${on ? "text-brand" : "text-ink-3"}`}
                 >
                   {t.label}
                 </span>
@@ -105,9 +127,14 @@ export function AppShell({
   );
 
   /* On a real phone the device is already there. Drawing a second one around it
-     would be silly, and the status bar would duplicate the operating system's. */
+     would be silly, and the status bar would duplicate the operating system's.
+
+     But the drawn StatusBar was also doing a second job — holding the top of the
+     app clear of the notch. Without it, and with `viewport-fit=cover` in
+     index.html, every screen's sticky header renders under the real status bar.
+     The env() inset is that job, done by the OS's own number. */
   if (!phone) {
-    return <div className="flex h-full w-full flex-col">{app}</div>;
+    return <div className="flex h-full w-full flex-col pt-[env(safe-area-inset-top)]">{app}</div>;
   }
 
   return (
@@ -147,11 +174,6 @@ export function AppShell({
     </div>
   );
 }
-
-/* iPhone 15/16 logical size, plus a bezel wide enough to read as a device. */
-const SCREEN_W = 393;
-const SCREEN_H = 852;
-const BEZEL = 13;
 
 /**
  * Device chrome, not app data.
@@ -213,14 +235,6 @@ function Compass() {
     </svg>
   );
 }
-function Pin() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <path d="M12 21c4-4.5 6-7.6 6-10.2A6 6 0 006 10.8C6 13.4 8 16.5 12 21z" strokeLinejoin="round" />
-      <circle cx="12" cy="10.5" r="2.2" />
-    </svg>
-  );
-}
 function Route() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -230,27 +244,22 @@ function Route() {
     </svg>
   );
 }
+/* Two people, the back one only half drawn — the overlap is what says 一起. */
+function People() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <circle cx="9.4" cy="8.8" r="3.2" />
+      <path d="M3.4 19.4c.8-2.9 3.1-4.5 6-4.5s5.2 1.6 6 4.5" strokeLinecap="round" />
+      <path d="M15.9 6.2a3.2 3.2 0 010 5.2" strokeLinecap="round" />
+      <path d="M16.6 15.2c2 .5 3.4 1.9 4 4.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 function TagIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <path d="M4 11V5h6l9.5 9.5a2 2 0 010 2.8l-3.2 3.2a2 2 0 01-2.8 0z" strokeLinejoin="round" />
       <circle cx="8" cy="9" r="1.3" />
-    </svg>
-  );
-}
-function Person() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <circle cx="12" cy="8.5" r="3.6" />
-      <path d="M5 20c.9-3.6 3.6-5.5 7-5.5s6.1 1.9 7 5.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-function Sparkle() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l1.9 5.6L19.5 9.5 13.9 11.4 12 17l-1.9-5.6L4.5 9.5l5.6-1.9z" />
-      <path d="M18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z" opacity=".75" />
     </svg>
   );
 }

@@ -140,6 +140,22 @@ export const POI_TW_SOUTH: Poi[] = [
     ticketed: true,
   },
   {
+    id: "tainan-art",
+    name: "臺南市美術館 2 館",
+    destId: "tainan",
+    area: "中西區",
+    kind: "attraction",
+    lat: 22.9887,
+    lng: 120.2035,
+    emoji: "🗼",
+    tint: "#EDEAE3",
+    about:
+      "坂茂設計的碎形屋頂會把日光篩成一地光斑，中午前後最明顯；一票通 1 館，兩館走路五分鐘。",
+    stayMin: 90,
+    indoor: true,
+    ticketed: true,
+  },
+  {
     id: "blueprint",
     name: "藍晒圖文創園區",
     destId: "tainan",

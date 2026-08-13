@@ -1,8 +1,16 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { AFFILIATE_DISCLOSURE, BY_TRAVELLER, dealsForPoi, poi } from "../data";
+import {
+  AFFILIATE_DISCLOSURE,
+  BY_TRAVELLER,
+  dealsForPoi,
+  poi,
+  POIS,
+} from "../data";
 import { DealCard } from "../components/DealCard";
+import { Cover } from "../components/Cover";
 import { dur } from "../lib/adapt";
+import { distance, km } from "../lib/geo";
 import { track } from "../lib/track";
 import { openDirections } from "../lib/maps";
 import { useNav } from "../nav";
@@ -10,17 +18,20 @@ import {
   Avatar,
   Button,
   Card,
+  Headphones,
   Note,
   Screen,
   Section,
-  StoryBadge,
   Thumb,
   TopBar,
 } from "../components/ui";
 import {
   LEG_LABEL,
+  POI_KIND_LABELS,
   type Day,
   type Deal,
+  type LegMode,
+  type Poi,
   type Stop,
   type Track,
   type TravellerId,
@@ -206,19 +217,25 @@ function ticketReminders(trip: Trip): { names: string[]; deals: Deal[] } {
 
 /**
  * One day, read like a timetable: time, place, how long, how you get to the
- * next one. Everything else about a place — address, photos, tickets, the
- * story — lives one tap away on its own screen. Putting it here is what makes
- * every other planner's day view exhausting to look at.
+ * next one — and, on every stop that has one, the way into its story.
+ *
+ * The story button is the reason this screen matters. A traveller does not go
+ * looking for audio guides; they look at what they are doing next. Putting the
+ * headphones on the itinerary row is how they find out, while walking, that the
+ * place they are walking to has something to listen to.
  */
 export function DayPlan({
   trip,
   day,
   banner,
+  onAdjust,
 }: {
   trip: Trip;
   day: number;
   /** The in-trip AI card, injected above the timeline when something changed. */
   banner?: ReactNode;
+  /** Opens the AI adjustment flow. Owned by App — this screen only asks. */
+  onAdjust: () => void;
 }) {
   const nav = useNav();
   const d = trip.days.find((x) => x.n === day) ?? trip.days[0];
@@ -239,6 +256,10 @@ export function DayPlan({
     : undefined;
   const own = d.tracks.filter((t) => t !== shared);
   const split = own.length > 1;
+
+  /* Somewhere you are already going is not a discovery, so the whole day —
+     both tracks of a split one — is excluded from the "on the way" line. */
+  const planned = new Set(d.tracks.flatMap((t) => t.stops.map((s) => s.poiId)));
 
   return (
     <Screen>
@@ -273,18 +294,35 @@ export function DayPlan({
         {d.date} <span className="font-normal text-ink-3">{d.weekday}</span>
       </div>
 
-      <div className="px-5 pb-28 pt-3">
+      {/* In the page, not floating over it. A plan that changes is the normal
+          case on a trip, so the way to change it belongs in the reading order
+          rather than parked on top of the last stop of the day. Quiet fill: the
+          one loud thing on this screen is whatever the AI then proposes. */}
+      <div className="px-5 pt-3">
+        <button
+          onClick={onAdjust}
+          className="flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-3.5 text-left active:bg-surface-2"
+        >
+          <span className="text-[15px]">✨</span>
+          <span className="flex-1 text-[14.5px] font-semibold text-ink">
+            行程有變？讓 AI 幫你改
+          </span>
+          <span className="shrink-0 text-[15px] text-ink-3">›</span>
+        </button>
+      </div>
+
+      <div className="px-5 pb-28 pt-4">
         {split ? (
           <div className="space-y-6">
             {own.map((t) => (
               <div key={t.id}>
                 <TrackHeader track={t} />
-                <Timeline stops={t.stops} />
+                <Timeline stops={t.stops} planned={planned} />
               </div>
             ))}
           </div>
         ) : (
-          own.map((t) => <Timeline key={t.id} stops={t.stops} />)
+          own.map((t) => <Timeline key={t.id} stops={t.stops} planned={planned} />)
         )}
 
         {shared && meet && (
@@ -296,7 +334,7 @@ export function DayPlan({
               </span>
               <span className="h-px flex-1 bg-line" />
             </div>
-            <Timeline stops={shared.stops} />
+            <Timeline stops={shared.stops} planned={planned} />
           </>
         )}
 
@@ -319,77 +357,193 @@ function TrackHeader({ track: t }: { track: Track }) {
   );
 }
 
-function Timeline({ stops }: { stops: Stop[] }) {
+function Timeline({ stops, planned }: { stops: Stop[]; planned: Set<string> }) {
   const nav = useNav();
+
+  const found = stops.map((s, i) => {
+    const prev = stops[i - 1];
+    return prev && s.from ? passedOnTheWay(prev, s, planned) : null;
+  });
+  /* One mention per place. A shop that sits between three stops qualifies for
+     all three legs, and the same name twice in a column reads as a bug rather
+     than a discovery — so it is kept only on the leg it is nearest to. */
+  const keep = new Map<string, number>();
+  found.forEach((v, i) => {
+    if (!v) return;
+    const held = keep.get(v.poi.id);
+    if (held === undefined || v.metres < (found[held]?.metres ?? Infinity)) {
+      keep.set(v.poi.id, i);
+    }
+  });
+  const vias = found.map((v, i) => (v && keep.get(v.poi.id) === i ? v.poi : null));
+
   return (
     <div>
       {stops.map((s, i) => (
         <div key={s.id}>
-          {i > 0 && s.from && (
-            <Leg from={stops[i - 1]} to={s} />
-          )}
-          <StopRow stop={s} onClick={() => nav.go({ k: "poi", id: s.poiId })} />
+          {i > 0 && s.from && <Leg to={s} via={vias[i]} />}
+          <StopRow
+            stop={s}
+            prev={i > 0 ? stops[i - 1] : undefined}
+            onClick={() => nav.go({ k: "poi", id: s.poiId })}
+          />
         </div>
       ))}
     </div>
   );
 }
 
+const LEG_ICON: Record<LegMode, string> = {
+  walk: "🚶",
+  train: "🚇",
+  bus: "🚌",
+  taxi: "🚕",
+  drive: "🚗",
+};
+
 /**
- * The gap between two stops, and the one thing a traveller standing in it
- * actually wants.
+ * The gap between two stops — now purely something to read.
  *
- * ResoMap does not do turn-by-turn — the app for that is already on the phone
- * and is better at it. So this shows the estimate the itinerary was planned
- * against and hands off. It does not ask which mode: the itinerary already says
- * 步行, and asking again would be the app forgetting its own plan.
+ * 怎麼走 moved onto the stop itself, which left this line free to say the one
+ * thing a person in the gap can actually use: what they will walk past. It is
+ * computed, never written: a place near the midpoint that is not already in the
+ * day. If nothing qualifies the line is simply absent, because inventing a
+ * landmark on a route is the fastest way to make the whole itinerary suspect.
  */
-function Leg({ from, to }: { from: Stop; to: Stop }) {
+function Leg({ to, via }: { to: Stop; via: Poi | null }) {
   if (!to.from) return null;
-  const mode = to.from.mode;
+  const { mode, min, metres } = to.from;
+
   return (
-    <div className="flex items-center gap-2 py-1.5 pl-[52px] pr-1">
-      <span className="text-[12.5px] text-ink-3">
-        {LEG_LABEL[mode]}約 {to.from.min} 分鐘
-      </span>
-      <button
-        onClick={() => openDirections(poi(from.poiId), poi(to.poiId), mode)}
-        className="-my-1 ml-auto inline-flex min-h-11 shrink-0 items-center rounded-full px-3 text-[12.5px] font-bold text-brand active:bg-brand-wash"
-      >
-        怎麼走
-      </button>
+    <div className="pl-[56px]">
+      <div className="border-l-[1.5px] border-line py-2 pl-3.5">
+        <div className="text-[12.5px] text-ink-3">
+          {LEG_ICON[mode]} {LEG_LABEL[mode]} {min} 分鐘 · {km(metres)}
+        </div>
+        {via && (
+          <div className="mt-1 text-[12.5px] leading-relaxed text-ink-3">
+            途中會經過：{via.name}（{viaNote(via)}）
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function StopRow({ stop, onClick }: { stop: Stop; onClick: () => void }) {
+/** How close to the straight-line midpoint still counts as "on the way". */
+const VIA_RADIUS = 250;
+
+interface Via {
+  poi: Poi;
+  metres: number;
+}
+
+/**
+ * Free things are the pleasant surprise, so a non-ticketed place wins even when
+ * a ticketed one sits closer to the midpoint; distance only breaks the tie.
+ */
+function passedOnTheWay(from: Stop, to: Stop, planned: Set<string>): Via | null {
+  const a = poi(from.poiId);
+  const b = poi(to.poiId);
+  const mid = { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+
+  const near = POIS.filter(
+    (p) =>
+      p.destId === a.destId &&
+      !planned.has(p.id) &&
+      distance(mid, p) <= VIA_RADIUS,
+  ).sort(
+    (x, y) =>
+      Number(Boolean(x.ticketed)) - Number(Boolean(y.ticketed)) ||
+      distance(mid, x) - distance(mid, y),
+  );
+
+  const best = near[0];
+  return best ? { poi: best, metres: distance(mid, best) } : null;
+}
+
+/**
+ * "免費" is only information where you could otherwise have been charged to get
+ * in, so it is reserved for the places that sell admission elsewhere. A noodle
+ * street is described by what it is.
+ */
+function viaNote(p: Poi): string {
+  if (p.ticketed) return "需門票";
+  if (p.kind === "attraction" || p.kind === "nature") return "免費";
+  return POI_KIND_LABELS[p.kind];
+}
+
+function StopRow({
+  stop,
+  prev,
+  onClick,
+}: {
+  stop: Stop;
+  prev?: Stop;
+  onClick: () => void;
+}) {
+  const nav = useNav();
   const p = poi(stop.poiId);
+  const mode = stop.from?.mode ?? "walk";
+  const hasStory = Boolean(p.storyId);
+
+  /* Both actions are secondary on purpose. The itinerary is a list of equals —
+     the moment one stop's headphones turn orange, every other stop reads as the
+     boring one. */
+  const action =
+    "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-surface px-4 text-[13px] font-semibold text-ink transition active:bg-surface-2";
+
   return (
-    <button onClick={onClick} className="flex w-full gap-3 py-1.5 text-left">
-      <div className="num w-11 shrink-0 pt-1 text-[14px] font-bold text-ink">{stop.at}</div>
-      <Thumb emoji={p.emoji} tint={p.tint} size={60} />
-      <div className="min-w-0 flex-1 pt-0.5">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-[15.5px] font-semibold text-ink">{p.name}</span>
-          {/* Where the badge matters most: the place you are walking to turns
-              out to have something to listen to on the way. */}
-          {p.storyId && <StoryBadge label={false} />}
-          {stop.meal && (
-            <span className="shrink-0 text-[12px] text-ink-3">
-              {stop.meal === "lunch" ? "午餐" : "晚餐"}
-            </span>
+    <div className="py-1">
+      <button
+        onClick={onClick}
+        className="-mx-2 flex w-full gap-3 rounded-2xl px-2 py-1.5 text-left active:bg-surface"
+      >
+        <div className="num w-11 shrink-0 pt-1 text-[14px] font-bold text-ink">
+          {stop.at}
+        </div>
+        <Cover poi={p} height={72} radius={12} emoji={false} className="w-[92px]" />
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[15.5px] font-semibold text-ink">{p.name}</span>
+            {stop.meal && (
+              <span className="shrink-0 text-[12px] text-ink-3">
+                {stop.meal === "lunch" ? "午餐" : "晚餐"}
+              </span>
+            )}
+          </div>
+          {stop.stayMin > 0 && (
+            <div className="mt-0.5 text-[12.5px] text-ink-3">停留 {dur(stop.stayMin)}</div>
+          )}
+          {stop.changed && (
+            <div className="mt-1.5 inline-block rounded-md bg-brand-wash px-1.5 py-0.5 text-[11px] font-semibold text-brand">
+              {stop.changed}
+            </div>
           )}
         </div>
-        {stop.stayMin > 0 && (
-          <div className="mt-0.5 text-[12.5px] text-ink-3">停留 {dur(stop.stayMin)}</div>
+      </button>
+
+      <div className="mt-1.5 flex gap-2 pl-[56px]">
+        {hasStory && (
+          <button
+            onClick={() => {
+              track("story_open", { poiId: p.id });
+              nav.play(p.id, "full");
+            }}
+            className={`${action} flex-1`}
+          >
+            <Headphones size={13} />
+            聽故事
+          </button>
         )}
-        {stop.changed && (
-          <div className="mt-1.5 inline-block rounded-md bg-brand-wash px-1.5 py-0.5 text-[11px] font-semibold text-brand">
-            {stop.changed}
-          </div>
-        )}
+        <button
+          onClick={() => openDirections(prev ? poi(prev.poiId) : null, p, mode)}
+          className={`${action} ${hasStory ? "flex-1" : "ml-auto"}`}
+        >
+          怎麼走
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
 

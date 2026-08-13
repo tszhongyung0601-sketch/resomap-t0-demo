@@ -59,7 +59,7 @@ export function MoreServicesSheet({ onClose }: { onClose: () => void }) {
                 live
                   ? () => {
                       onClose();
-                      if (s.id === "tools") nav.tab("profile");
+                      if (s.id === "tools") nav.go({ k: "profile" });
                       else nav.go({ k: "service", id: s.id });
                     }
                   : undefined

@@ -24,9 +24,18 @@ export type Route =
   | { k: "carrental"; destId?: string }
   | { k: "service"; id: ServiceId }
   | { k: "admin" }
-  | { k: "demo" };
+  | { k: "demo" }
+  /* Map and profile stopped being tabs: one is a way of finding a place, not a
+     destination; the other was thirteen rows of 即將推出. */
+  | { k: "map" }
+  | { k: "profile" }
+  /* 一起規劃 */
+  | { k: "room" }
+  | { k: "prefs" }
+  | { k: "pool" }
+  | { k: "consensus2" };
 
-export type Tab = "explore" | "map" | "trips" | "deals" | "profile";
+export type Tab = "explore" | "trips" | "together" | "deals";
 
 /**
  * Everything a screen is allowed to do to the rest of the app.
@@ -72,6 +81,14 @@ export interface Nav {
   addPoi: (tripId: string, day: number, poiId: string) => void;
   /** Create the demo trip for a destination and open it. */
   createTrip: (destId: string) => void;
+  /**
+   * Pull a scripted demo itinerary into live state and open it.
+   *
+   * Accepting the group's consensus has to produce a trip they can actually
+   * open. Navigating to a trip id that only exists in the fixtures lands on a
+   * blank screen — the one place in the flow where the payoff is supposed to be.
+   */
+  adoptTrip: (tripId: string) => void;
 }
 
 export const NavContext = createContext<Nav | null>(null);
