@@ -104,7 +104,8 @@ export function Button({
 }: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: "primary" | "secondary" | "ghost";
+  /** `onCard` is `secondary` for use inside a bg-surface Card — see below. */
+  variant?: "primary" | "secondary" | "ghost" | "onCard";
   disabled?: boolean;
   full?: boolean;
 }) {
@@ -113,6 +114,11 @@ export function Button({
   const styles = {
     primary: "bg-brand text-white active:bg-brand-press",
     secondary: "bg-surface text-ink active:bg-surface-2",
+    /* A `secondary` button inside a Card is bg-surface on bg-surface — the same
+       token, 1:1 contrast, no border, no shadow. It disappears completely and
+       the most important tap on the home screen renders as a line of bold text.
+       On a card, the fill has to be the page white. */
+    onCard: "bg-bg text-ink active:bg-surface-2",
     ghost: "text-ink-2 active:bg-surface",
   }[variant];
   return (
@@ -295,8 +301,12 @@ export function Sheet({
   children: ReactNode;
 }) {
   if (!open) return null;
+  /* `fixed`, not `absolute`: the phone frame in AppShell is a transform
+     ancestor, so fixed resolves to exactly the 393x852 box — and unlike
+     absolute it covers the tab bar, which otherwise stayed lit and tappable
+     behind a modal backdrop. */
   return (
-    <div className="absolute inset-0 z-40">
+    <div className="fixed inset-0 z-40">
       <div className="rm-fade absolute inset-0 bg-black/35" onClick={onClose} />
       <div className="rm-up absolute inset-x-0 bottom-0 max-h-[86%] overflow-y-auto rounded-t-3xl bg-bg pb-6 no-scrollbar">
         <div className="sticky top-0 z-10 bg-bg pt-2.5">
@@ -343,6 +353,15 @@ export function Empty({
   );
 }
 
+/**
+ * A list row. Interactivity follows `onClick`, and so does the chevron.
+ *
+ * Rendering the › unconditionally made every not-yet-built row on 我的 look
+ * live: fifteen rows, thirteen of them with an arrow and a press highlight and
+ * nothing behind them. Tapping one taught the traveller that the app ignores
+ * them, which is a worse outcome than the row simply saying it is not ready —
+ * which is what MapTab already does for its unbuilt filters.
+ */
 export function Row({
   icon,
   label,
@@ -354,15 +373,31 @@ export function Row({
   value?: string;
   onClick?: () => void;
 }) {
+  const live = Boolean(onClick);
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-5 py-3.5 text-left active:bg-surface"
+      disabled={!live}
+      className={`flex w-full items-center gap-3 px-5 py-3.5 text-left ${
+        live ? "active:bg-surface" : ""
+      }`}
     >
-      {icon && <span className="w-6 shrink-0 text-center text-[17px]">{icon}</span>}
-      <span className="flex-1 text-[15px] text-ink">{label}</span>
+      {icon && (
+        <span
+          className={`w-6 shrink-0 text-center text-[17px] ${live ? "" : "opacity-45"}`}
+        >
+          {icon}
+        </span>
+      )}
+      <span className={`flex-1 text-[15px] ${live ? "text-ink" : "text-ink-3"}`}>
+        {label}
+      </span>
       {value && <span className="shrink-0 text-[13px] text-ink-3">{value}</span>}
-      <span className="shrink-0 text-[15px] text-ink-3">›</span>
+      {live ? (
+        <span className="shrink-0 text-[15px] text-ink-3">›</span>
+      ) : (
+        <Tag kind="later" />
+      )}
     </button>
   );
 }

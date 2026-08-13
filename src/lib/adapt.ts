@@ -1,6 +1,15 @@
 import { poi } from "../data";
 import { distance } from "./geo";
-import type { Adapt, Stop, Trip } from "../types";
+import type { Adapt, LegMode, Stop, Trip } from "../types";
+
+/** Door-to-door metres per minute, not vehicle top speed. */
+const SPEED: Record<LegMode, number> = {
+  walk: 75,
+  train: 420,
+  bus: 330,
+  taxi: 620,
+  drive: 700,
+};
 
 const toMin = (v: string) => {
   const [h, m] = v.split(":").map(Number);
@@ -110,6 +119,25 @@ export function previewAdapt(trip: Trip, adapt: Adapt): AdaptPreview {
           swappedFrom = poi(s.poiId).name;
           swappedTo = poi(swap[s.id]).name;
           return { ...s, poiId: swap[s.id], changed: adapt.swapNote ?? "已調整" };
+        });
+        /* The legs either side of a swapped stop were measured to the OLD venue.
+           Leaving them is how you end up telling somebody to drive 42 minutes to
+           a place that is nine minutes away — the timeline would contradict the
+           map on the one screen that is supposed to be trustworthy. */
+        stops = stops.map((s, i) => {
+          const prev = stops[i - 1];
+          const touched = swap[s.id] || (prev && swap[prev.id]);
+          if (!prev || !s.from || !touched) return s;
+          const metres = Math.round(distance(poi(prev.poiId), poi(s.poiId)) * 1.25);
+          /* Nobody drives 900 metres. When a swap makes a motorised leg short
+             enough to walk, say so — reporting "開車 1 分鐘" is technically
+             derived from the distance and still obviously wrong to a human. */
+          const mode =
+            s.from.mode !== "walk" && metres < 1200 ? ("walk" as const) : s.from.mode;
+          return {
+            ...s,
+            from: { mode, metres, min: Math.max(1, Math.round(metres / SPEED[mode])) },
+          };
         });
       }
 

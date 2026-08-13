@@ -181,7 +181,7 @@ export const HUALIEN_TRIP: Trip = {
             { id: "hl-d1-a", poiId: "pine-garden", at: "14:00", stayMin: 60 },
             {
               id: "hl-d1-b",
-              poiId: "hualien-cultural",
+              poiId: "stone-museum",
               at: "15:30",
               stayMin: 80,
               from: { mode: "walk", min: 12, metres: 800 },
@@ -194,6 +194,9 @@ export const HUALIEN_TRIP: Trip = {
               meal: "dinner",
               from: { mode: "walk", min: 14, metres: 950 },
             },
+            /* 花蓮文創園區 is deliberately NOT here: it is Day 2's wet-weather
+               alternative, and an AI that moves you to somewhere you are already
+               going tomorrow has not solved anything. */
           ],
         },
       ],
@@ -247,9 +250,10 @@ export const HUALIEN_TRIP: Trip = {
             { id: "hl-d3-a", poiId: "hualien-sugar", at: "10:00", stayMin: 60 },
             {
               id: "hl-d3-b",
-              poiId: "stone-museum",
+              poiId: "dongdamen",
               at: "12:30",
               stayMin: 70,
+              meal: "lunch",
               from: { mode: "drive", min: 48, metres: 34000 },
             },
           ],

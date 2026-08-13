@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Deal, ServiceId } from "./types";
+import type { Deal, ServiceId, Trip } from "./types";
 
 /**
  * A route stack on top of the tabs. No router library: every flow in this app
@@ -36,6 +36,16 @@ export interface Nav {
   back: () => void;
   /** Switch tab and clear the stack. */
   tab: (t: Tab) => void;
+
+  /**
+   * The traveller's LIVE trips.
+   *
+   * Screens must read this, never the static exports in data/trips.ts. Those
+   * are the starting fixtures; the moment somebody adds a stop or applies an
+   * adjustment they are stale, and a screen reading them will cheerfully report
+   * success against a trip that no longer exists.
+   */
+  trips: Trip[];
 
   /* ---- things that open over the current screen rather than replacing it -- */
   /** Open the outbound sheet for a commercial link. */

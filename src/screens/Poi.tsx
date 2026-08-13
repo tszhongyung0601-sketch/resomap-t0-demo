@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AFFILIATE_DISCLOSURE, POIS, TRIPS, dealsForPoi, poi } from "../data";
+import { AFFILIATE_DISCLOSURE, POIS, dealsForPoi, poi } from "../data";
 import { story } from "../data/stories";
 import { DealCard } from "../components/DealCard";
 import { Button, Note, Screen, Section, Thumb } from "../components/ui";
@@ -68,7 +68,10 @@ export function Poi({ id }: { id: string }) {
   const localOffers = attached.filter((d) => d.category === "local");
 
   function addToTrip() {
-    const mine = TRIPS.filter((t) => t.destId === p.destId);
+    /* nav.trips, not the TRIPS export. The export is the starting fixture: it
+       still lists a 台南 trip after the demo has been reset, so this reported
+       "已加入 Day 2" against a trip that no longer existed and nothing moved. */
+    const mine = nav.trips.filter((t) => t.destId === p.destId);
     if (mine.length !== 1) {
       nav.go({ k: "create", destId: p.destId });
       return;

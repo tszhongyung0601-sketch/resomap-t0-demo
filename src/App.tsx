@@ -4,7 +4,15 @@ import { AdaptCard } from "./components/AdaptCard";
 import { OutboundSheet } from "./components/DealCard";
 import { ArrivalSheet, StoryPlayer } from "./components/Story";
 import { Button, Sheet, Thumb } from "./components/ui";
-import { ADAPTS, HUALIEN_TRIP, TAINAN_TRIP, TOKYO_TRIP, poi, poisForDest } from "./data";
+import {
+  ADAPTS,
+  HUALIEN_TRIP,
+  TAINAN_TRIP,
+  TOKYO_TRIP,
+  dest,
+  poi,
+  poisForDest,
+} from "./data";
 import { applyAdapt } from "./lib/adapt";
 import { distance, km } from "./lib/geo";
 import { stopSpeaking } from "./lib/speech";
@@ -33,6 +41,16 @@ const INITIAL: Trip[] = [
   { ...TOKYO_TRIP },
 ];
 
+/** What the floating button is for, right now. One value, two consumers. */
+type AiMode = "adjust" | "nearby" | "plan" | "inspire";
+
+const AI_LABEL: Record<AiMode, string> = {
+  adjust: "調整行程",
+  nearby: "附近推薦",
+  plan: "幫我排",
+  inspire: "問 AI",
+};
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("explore");
   const [stack, setStack] = useState<Route[]>([]);
@@ -49,6 +67,7 @@ export default function App() {
 
   /** Which adapt card is currently live, if any. */
   const [adapt, setAdapt] = useState<string | null>(null);
+  const [usedAdapts, setUsedAdapts] = useState<string[]>([]);
 
   const route: Route | null = stack[stack.length - 1] ?? null;
   const ongoing = trips.find((t) => t.phase === "ongoing") ?? null;
@@ -61,7 +80,16 @@ export default function App() {
 
   const nav: Nav = useMemo(
     () => ({
-      go: (r) => setStack((s) => [...s, r]),
+      trips,
+      /* Pushing a route that is already open truncates back to it instead of
+         stacking a second copy. Without this, trip -> day -> trip -> day makes
+         Back walk the same two screens forever and the 行程 list becomes
+         unreachable. */
+      go: (r) =>
+        setStack((s) => {
+          const at = s.findIndex((x) => sameRoute(x, r));
+          return at >= 0 ? s.slice(0, at + 1) : [...s, r];
+        }),
       back: () => setStack((s) => s.slice(0, -1)),
       tab: (t) => {
         setStack([]);
@@ -117,15 +145,8 @@ export default function App() {
           setTab("trips");
           return;
         }
-        const fresh: Trip = {
-          ...TAINAN_TRIP,
-          id: `trip-${destId}`,
-          destId,
-          phase: "upcoming",
-          daysUntil: 7,
-        };
-        setTrips((l) => [fresh, ...l]);
-        setStack([{ k: "trip", id: fresh.id }]);
+        setTrips((l) => [newTrip(destId), ...l]);
+        setStack([{ k: "trip", id: `trip-${destId}` }]);
         setTab("trips");
       },
     }),
@@ -138,6 +159,7 @@ export default function App() {
     stopSpeaking();
     setTrips(INITIAL);
     setAdapt(null);
+    setUsedAdapts([]);
     setArrival(null);
     setStory(null);
     setDeal(null);
@@ -148,19 +170,33 @@ export default function App() {
   function startTainan() {
     setTrips((l) => [{ ...TAINAN_TRIP }, ...l.filter((t) => t.id !== TAINAN_TRIP.id)]);
     setAdapt(null);
+    setUsedAdapts([]);
     setStack([]);
     setTab("explore");
   }
+
+  /**
+   * Exactly one trip may be ongoing.
+   *
+   * Firing the Hualien scenario while the Tainan one was already running left
+   * both marked ongoing, and every `find(t => t.phase === "ongoing")` in the app
+   * then silently picked whichever happened to be first in the array.
+   */
+  const makeOngoing = (list: Trip[], tripId: string, day: number): Trip[] =>
+    list.map((t) =>
+      t.id === tripId
+        ? { ...t, phase: "ongoing" as const, today: day }
+        : t.phase === "ongoing"
+          ? { ...t, phase: "soon" as const }
+          : t,
+    );
 
   function fireAdapt(id: string) {
     const a = ADAPTS.find((x) => x.id === id);
     if (!a) return;
     setTrips((l) => {
-      const has = l.some((t) => t.id === a.tripId);
-      const base = has ? l : [{ ...TAINAN_TRIP }, ...l];
-      return base.map((t) =>
-        t.id === a.tripId ? { ...t, phase: "ongoing" as const, today: a.day } : t,
-      );
+      const base = l.some((t) => t.id === a.tripId) ? l : [{ ...TAINAN_TRIP }, ...l];
+      return makeOngoing(base, a.tripId, a.day);
     });
     setAdapt(id);
     setAiSheet(false);
@@ -173,16 +209,16 @@ export default function App() {
     const a = ADAPTS.find((x) => x.id === adapt);
     if (!a) return;
     setTrips((l) => l.map((t) => (t.id === a.tripId ? applyAdapt(t, a) : t)));
+    /* Once applied, the day has already moved. Offering the same scenario again
+       would shift it a second time and call the result a suggestion. */
+    setUsedAdapts((u) => [...u, a.id]);
     setAdapt(null);
   }
 
   function arriveDemo() {
     setTrips((l) => {
-      const has = l.some((t) => t.id === TAINAN_TRIP.id);
-      const base = has ? l : [{ ...TAINAN_TRIP }, ...l];
-      return base.map((t) =>
-        t.id === TAINAN_TRIP.id ? { ...t, phase: "ongoing" as const, today: 2 } : t,
-      );
+      const base = l.some((t) => t.id === TAINAN_TRIP.id) ? l : [{ ...TAINAN_TRIP }, ...l];
+      return makeOngoing(base, TAINAN_TRIP.id, 2);
     });
     setStack([{ k: "day", tripId: TAINAN_TRIP.id, n: 2 }]);
     setTab("trips");
@@ -196,30 +232,43 @@ export default function App() {
    * "調整行程" while you are standing in the rain is a different product from one
    * that says "AI" everywhere and waits for you to think of something to type.
    */
-  const ai = useMemo(() => {
-    if (story) return null;
-    /* Screens that already end in a decision get no competing button. */
+  /**
+   * The label and the sheet are the SAME decision, made once.
+   *
+   * They used to be computed separately and drifted apart: the button read
+   * 附近推薦 on the map while the sheet that opened was 現在怎麼調整？, because
+   * one branched on the tab and the other on whether a trip was running. A
+   * button that lies about what it does is worse than no button, and this app's
+   * whole claim is that the label follows the context — so context is resolved
+   * once, here, and both sides read the result.
+   */
+  const aiMode = useMemo<AiMode | null>(() => {
+    if (story || adapt) return null;
     if (route && route.k !== "day") return null;
-    if (adapt) return null;
 
     if (route?.k === "day") {
-      return { label: "調整行程", onClick: () => setAiSheet(true) };
+      const t = trips.find((x) => x.id === route.tripId);
+      return t && ADAPTS.some((a) => a.tripId === t.id) ? "adjust" : "plan";
     }
-    if (tab === "explore") {
-      return ongoing
-        ? { label: "調整行程", onClick: () => setAiSheet(true) }
-        : { label: "問 AI", onClick: () => setAiSheet(true) };
-    }
-    if (tab === "map") {
-      return { label: "附近推薦", onClick: () => setAiSheet(true) };
-    }
-    if (tab === "trips") {
-      return ongoing
-        ? { label: "調整行程", onClick: () => setAiSheet(true) }
-        : { label: "幫我排", onClick: () => setAiSheet(true) };
-    }
+    if (tab === "map") return "nearby";
+    if (tab === "explore") return ongoing ? "adjust" : "inspire";
+    if (tab === "trips") return ongoing ? "adjust" : trips.length ? "plan" : "inspire";
     return null;
-  }, [route, tab, story, adapt, ongoing]);
+  }, [route, tab, story, adapt, ongoing, trips]);
+
+  /** The trip the AI would be talking about, if it is talking about one. */
+  const aiTrip = useMemo(() => {
+    if (route?.k === "day") return trips.find((t) => t.id === route.tripId) ?? ongoing;
+    return ongoing;
+  }, [route, trips, ongoing]);
+
+  const ai = useMemo(
+    () =>
+      aiMode
+        ? { label: AI_LABEL[aiMode], onClick: () => setAiSheet(true) }
+        : null,
+    [aiMode],
+  );
 
   /* ----------------------------------------------------------- the screen */
 
@@ -325,8 +374,10 @@ export default function App() {
         <AiSheet
           open={aiSheet}
           onClose={() => setAiSheet(false)}
-          tab={tab}
-          ongoing={ongoing}
+          mode={aiMode}
+          trip={aiTrip}
+          destId={focusTrip?.destId ?? null}
+          used={usedAdapts}
           onAdapt={fireAdapt}
           onCreate={() => {
             setAiSheet(false);
@@ -363,24 +414,31 @@ export default function App() {
 function AiSheet({
   open,
   onClose,
-  tab,
-  ongoing,
+  mode,
+  trip,
+  destId,
+  used,
   onAdapt,
   onCreate,
   onPoi,
 }: {
   open: boolean;
   onClose: () => void;
-  tab: Tab;
-  ongoing: Trip | null;
+  mode: AiMode | null;
+  /** The trip this sheet is about, when it is about one. */
+  trip: Trip | null;
+  /** Where the map is currently looking. */
+  destId: string | null;
+  /** Scenarios already applied — offering them twice double-shifts the day. */
+  used: string[];
   onAdapt: (id: string) => void;
   onCreate: () => void;
   onPoi: (id: string) => void;
 }) {
-  if (!open) return null;
+  if (!open || !mode) return null;
 
-  if (ongoing) {
-    const mine = ADAPTS.filter((a) => a.tripId === ongoing.id);
+  if (mode === "adjust" && trip) {
+    const mine = ADAPTS.filter((a) => a.tripId === trip.id && !used.includes(a.id));
     return (
       <Sheet open onClose={onClose} title="現在怎麼調整？">
         <div className="px-5 pb-3">
@@ -402,18 +460,10 @@ function AiSheet({
                 </div>
               </button>
             ))}
-            {/* The rain scenario lives on the Hualien trip; offer it anyway so
-                the presenter can reach it from wherever they are. */}
-            {!mine.some((a) => a.trigger === "rain") && (
-              <button
-                onClick={() => onAdapt("hualien-rain")}
-                className="w-full rounded-2xl bg-surface p-4 text-left active:bg-surface-2"
-              >
-                <div className="text-[15px] font-semibold text-ink">🌧️ 天氣不好</div>
-                <div className="mt-0.5 text-[12.5px] text-ink-3">
-                  換成室內的替代方案（花蓮）
-                </div>
-              </button>
+            {mine.length === 0 && (
+              <p className="rounded-2xl bg-surface p-4 text-[13.5px] leading-relaxed text-ink-3">
+                今天沒有需要調整的地方。ResoMap 只在真的有狀況時才會主動出現。
+              </p>
             )}
           </div>
           <div className="mt-3">
@@ -426,13 +476,26 @@ function AiSheet({
     );
   }
 
-  if (tab === "map") {
-    const near = poisForDest("tainan").slice(0, 3);
+  if (mode === "nearby") {
+    /* Whatever the map is actually showing. Hardcoding 台南 here meant tapping
+       附近推薦 on a map of 花蓮 recommended 赤崁樓 — the one place in the app
+       that claims to know where you are, getting it wrong on the first tap. */
+    const d = destId ? dest(destId) : null;
+    const near = destId
+      ? [...poisForDest(destId)]
+          .sort(
+            (a, b) =>
+              distance({ lat: d?.lat ?? a.lat, lng: d?.lng ?? a.lng }, a) -
+              distance({ lat: d?.lat ?? b.lat, lng: d?.lng ?? b.lng }, b),
+          )
+          .slice(0, 3)
+      : [];
+
     return (
       <Sheet open onClose={onClose} title="附近推薦">
         <div className="px-5 pb-3">
           <p className="text-[13.5px] leading-relaxed text-ink-3">
-            照現在的地圖範圍，這三個最順路。
+            {d ? `照現在的地圖範圍，${d.name}這三個最順路。` : "先選一個地方，再看附近有什麼。"}
           </p>
           <div className="mt-3.5 space-y-1">
             {near.map((p) => (
@@ -448,7 +511,7 @@ function AiSheet({
                   </div>
                   <div className="text-[12.5px] text-ink-3">
                     {p.area}
-                    {near[0] !== p && ` · ${km(distance(near[0], p))}`}
+                    {d && ` · 距地圖中心 ${km(distance(d, p))}`}
                   </div>
                 </div>
                 <span className="text-ink-3">›</span>
@@ -566,6 +629,49 @@ function MapOfTrip({
 }
 
 /* ------------------------------------------------------------------ util */
+
+/** The five days the planner's calendar highlights. */
+const PLAN_DAYS = [
+  { n: 1, date: "8 月 20 日", weekday: "星期四" },
+  { n: 2, date: "8 月 21 日", weekday: "星期五" },
+  { n: 3, date: "8 月 22 日", weekday: "星期六" },
+  { n: 4, date: "8 月 23 日", weekday: "星期日" },
+  { n: 5, date: "8 月 24 日", weekday: "星期一" },
+];
+
+/**
+ * A trip the planner just created: the chosen city, the dates the planner
+ * actually showed, and five empty days.
+ *
+ * Cloning the Tainan itinerary here was quicker and much worse — picking 高雄
+ * produced a trip called "台南 3 天 2 夜" full of Tainan stops, which is the
+ * single most obvious way to prove a prototype is a mock-up.
+ */
+function newTrip(destId: string): Trip {
+  const d = dest(destId);
+  return {
+    id: `trip-${destId}`,
+    destId,
+    title: `${d?.name ?? "新的旅程"} 5 天 4 夜`,
+    dates: "8/20 - 8/24",
+    nights: 4,
+    phase: "upcoming",
+    daysUntil: 7,
+    today: 1,
+    travellers: [],
+    needsStay: true,
+    days: PLAN_DAYS.map((p) => ({
+      ...p,
+      tracks: [{ id: `${destId}-d${p.n}`, who: [], stops: [] }],
+    })),
+  };
+}
+
+/** Two routes are the same screen if they point at the same thing. */
+function sameRoute(a: Route, b: Route): boolean {
+  if (a.k !== b.k) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 function addMinutes(at: string, add: number) {
   const [h, m] = at.split(":").map(Number);

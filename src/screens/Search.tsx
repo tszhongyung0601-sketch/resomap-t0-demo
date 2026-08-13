@@ -230,10 +230,10 @@ export function Search({ q }: { q: string }) {
         <div className="relative flex-1 overflow-hidden">
           <MapView pins={pins} centre={centre} fit onPick={openPoi} />
 
-          <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-3xl bg-bg pb-[76px] pt-2.5">
+          <div className="absolute inset-x-0 bottom-0 z-20 rounded-t-3xl bg-bg pb-6 pt-2.5">
             <div className="mx-auto h-1 w-9 rounded-full bg-line" />
             <div className="mt-2.5 px-5 text-[15px] font-bold text-ink">搜尋結果</div>
-            <div className="mt-1 max-h-[236px] overflow-y-auto px-5 no-scrollbar">
+            <div className="mt-1 max-h-[264px] overflow-y-auto px-5 no-scrollbar">
               {results.length ? (
                 results.slice(0, 4).map((p) => (
                   <PoiRow key={p.id} poi={p} compact onClick={() => openPoi(p)} />

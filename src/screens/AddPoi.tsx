@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { BY_TRIP, POIS, poi, poisForDest } from "../data";
+import { POIS, poi, poisForDest } from "../data";
 import { distance, km } from "../lib/geo";
 import { useNav } from "../nav";
 import { Row, Sheet, Thumb } from "../components/ui";
@@ -23,7 +23,10 @@ export function AddPoiSheet({
 }) {
   const nav = useNav();
   const [q, setQ] = useState("");
-  const trip = BY_TRIP[tripId];
+  /* The live trip, not the static fixture. Reading BY_TRIP meant a trip created
+     during the demo had no entry at all (the sheet was empty), and an existing
+     one kept re-offering places you had just added. */
+  const trip = nav.trips.find((t) => t.id === tripId);
 
   const { anchor, nearby, more } = useMemo<{
     anchor: Poi | null;

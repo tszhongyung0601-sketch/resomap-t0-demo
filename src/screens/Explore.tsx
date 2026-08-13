@@ -217,7 +217,7 @@ function PlannedTrip({ trip }: { trip: Trip }) {
             loud thing on this screen, and two competing oranges is how a home
             screen stops telling you what to do next. */}
         <div className="mt-4">
-          <Button variant="secondary" onClick={() => nav.go({ k: "trip", id: trip.id })}>
+          <Button variant="onCard" onClick={() => nav.go({ k: "trip", id: trip.id })}>
             查看行程
           </Button>
         </div>
@@ -268,7 +268,7 @@ function ActiveTrip({ trip }: { trip: Trip }) {
             調整行程 button is already the one orange thing here. */}
         <div className="mt-4">
           <Button
-            variant="secondary"
+            variant="onCard"
             onClick={() => nav.go({ k: "day", tripId: trip.id, n: trip.today })}
           >
             查看今日行程

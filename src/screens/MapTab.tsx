@@ -232,7 +232,7 @@ export function MapTab({ destId }: { destId: string | null }) {
             這個範圍還沒有{label === "全部" ? "地點" : label}。
           </p>
         ) : (
-          <div className="mt-1 max-h-[240px] overflow-y-auto px-5 pb-2 no-scrollbar">
+          <div className="mt-1 max-h-[332px] overflow-y-auto px-5 pb-2 no-scrollbar">
             {nearby.map((p) => (
               <button
                 key={p.id}
