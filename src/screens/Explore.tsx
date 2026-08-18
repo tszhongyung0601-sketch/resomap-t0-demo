@@ -35,11 +35,11 @@ export function Explore({ trips }: { trips: Trip[] }) {
     <Screen>
       <BrandBar />
       <MapBlock trip={trip} />
-      {/* The trip sits above the guides: somebody who is mid-journey opens this
-          screen for their own itinerary, and making them scroll past fifteen
-          other people's stories to reach 開始今天行程 gets the order backwards. */}
-      {trip ? <NextTrip trip={trip} /> : <NoTrip />}
+      {/* Guides first, then the trip. The map answers「去哪」and the rail answers
+          「有什麼好聽的」— both are about the place. The trip card is about you,
+          and it reads better as the answer to those two than as their preface. */}
       <GuideRail destId={trip?.destId} />
+      {trip ? <NextTrip trip={trip} /> : <NoTrip />}
       <ServiceGrid />
       {/* shrink-0 or it collapses: Screen is a flex column, and a spacer with no
           content is the first thing flexbox takes back when the page overflows. */}
@@ -473,7 +473,7 @@ const SERVICES: { label: string; icon: string; tint: string; go: Route }[] = [
      Those four are all comingLater, so the tile leads to a real state rather than
      a real product — which is the honest version, not an empty door. */
   { label: "在地優惠", icon: "🏪", tint: "bg-surface-2", go: { k: "deals", tab: "more" } },
-  { label: "全部優惠", icon: "％", tint: "bg-brand-wash", go: { k: "deals" } },
+  { label: "更多優惠", icon: "％", tint: "bg-brand-wash", go: { k: "deals" } },
 ];
 
 function ServiceGrid() {

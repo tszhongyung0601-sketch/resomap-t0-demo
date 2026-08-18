@@ -368,6 +368,74 @@ export const IMAGE_SLOTS: ImageSlot[] = [
         "https://commons.wikimedia.org/wiki/File%3AMeiji-jingu%20Haupthalle%202.jpg",
     },
   },
+  {
+    poiId: "hualien-cultural",
+    kind: "photo",
+    aspectRatio: "4:3",
+    minLongEdge: 1400,
+    prompt: "花蓮文創園區的兩層木造與洗石子建築，前景草地與檳榔樹，藍天。",
+    status: "done",
+    src: "photos/hualien-cultural-card.webp",
+    srcLarge: "photos/hualien-cultural-hero.webp",
+    credit: {
+      author: "lienyuan lee",
+      licence: "CC BY 3.0",
+      licenceUrl: "https://creativecommons.org/licenses/by/3.0",
+      source:
+        "https://commons.wikimedia.org/wiki/File%3A%E8%8A%B1%E8%93%AE%E6%96%87%E5%89%B5%E7%94%A2%E6%A5%AD%E5%9C%92%E5%8D%80%20Hualian%20Cultural%20and%20Creative%20Industries%20Park%20-%20panoramio.jpg",
+    },
+  },
+  {
+    poiId: "dongdamen",
+    kind: "photo",
+    aspectRatio: "4:3",
+    minLongEdge: 1400,
+    prompt: "東大門夜市熱炒攤門面，菜單牌、攤商與客人。",
+    status: "done",
+    src: "photos/dongdamen-card.webp",
+    srcLarge: "photos/dongdamen-hero.webp",
+    credit: {
+      author: "Sinchen.Lin",
+      licence: "CC BY 2.0",
+      licenceUrl: "https://creativecommons.org/licenses/by/2.0",
+      source:
+        "https://commons.wikimedia.org/wiki/File%3A39-%E8%8A%B1%E8%93%AE%E6%9D%B1%E5%A4%A7%E9%96%80%E5%A4%9C%E5%B8%82%EF%BC%8C%E6%88%91%E6%9C%80%E5%A4%AF%E7%86%B1%E7%82%92%20(28896724823).jpg",
+    },
+  },
+  {
+    poiId: "shakadang",
+    kind: "photo",
+    aspectRatio: "4:3",
+    minLongEdge: 1400,
+    prompt: "砂卡礑步道的大理岩溪床與切在崖壁上的步道，兩側綠壁。",
+    status: "done",
+    src: "photos/shakadang-card.webp",
+    srcLarge: "photos/shakadang-hero.webp",
+    credit: {
+      author: "lienyuan lee",
+      licence: "CC BY 3.0",
+      licenceUrl: "https://creativecommons.org/licenses/by/3.0",
+      source:
+        "https://commons.wikimedia.org/wiki/File%3A%E7%A0%82%E5%8D%A1%E7%A4%91%E6%AD%A5%E9%81%93%20Shakadang%20Trail%20-%20panoramio%20(2).jpg",
+    },
+  },
+  {
+    poiId: "hualien-sugar",
+    kind: "photo",
+    aspectRatio: "4:3",
+    minLongEdge: 1400,
+    prompt: "光復糖廠保存的黑色糖鐵貨車廂，後方山稜與藍天。",
+    status: "done",
+    src: "photos/hualien-sugar-card.webp",
+    srcLarge: "photos/hualien-sugar-hero.webp",
+    credit: {
+      author: "Fred Hsu",
+      licence: "CC BY-SA 3.0",
+      licenceUrl: "https://creativecommons.org/licenses/by-sa/3.0",
+      source:
+        "https://commons.wikimedia.org/wiki/File%3ATaiwan%202009%20GuangFu%20Sugar%20Factory%20Historical%20Train%20Exhibition%20FRD%206170.jpg",
+    },
+  },
   /* ------------------------------------------------- AI historical scenes */
   {
     poiId: "chihkan",
