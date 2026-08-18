@@ -1,6 +1,7 @@
 import { poi } from "../data";
+import { BrandBar } from "../components/BrandBar";
 import { useNav } from "../nav";
-import { Button, Card, Empty, Screen, StoryBadge, Thumb, TopBar } from "../components/ui";
+import { Button, Card, Empty, Screen, StoryBadge, Thumb } from "../components/ui";
 import type { Trip } from "../types";
 
 /**
@@ -16,7 +17,7 @@ export function Trips({ trips }: { trips: Trip[] }) {
 
   return (
     <Screen>
-      <TopBar title="行程" large />
+      <BrandBar title="行程" />
 
       {trips.length === 0 ? (
         <Empty

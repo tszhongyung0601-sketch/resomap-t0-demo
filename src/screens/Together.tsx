@@ -7,6 +7,7 @@ import { ROOM } from "../data/room";
 import { consensus, pct, tallies } from "../lib/consensus";
 import type { Tally } from "../lib/consensus";
 import { track } from "../lib/track";
+import { BrandBar } from "../components/BrandBar";
 import { useNav } from "../nav";
 import { Cover } from "../components/Cover";
 import { Avatar, Button, Chip, Row, Screen, Section, Tag, TopBar } from "../components/ui";
@@ -174,7 +175,7 @@ export function Together() {
 
   return (
     <Screen>
-      <TopBar title="一起規劃" large />
+      <BrandBar title="一起規劃" />
 
       <div className="px-5">
         <div className="rounded-2xl bg-surface p-4">

@@ -30,9 +30,9 @@ function measure() {
 
 const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: "explore", label: "探索", icon: <Compass /> },
+  { id: "library", label: "導覽庫", icon: <Headphones /> },
   { id: "trips", label: "行程", icon: <Route /> },
   { id: "together", label: "一起規劃", icon: <People /> },
-  { id: "deals", label: "優惠", icon: <TagIcon /> },
 ];
 
 /**
@@ -272,11 +272,12 @@ function People() {
     </svg>
   );
 }
-function TagIcon() {
+function Headphones() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <path d="M4 11V5h6l9.5 9.5a2 2 0 010 2.8l-3.2 3.2a2 2 0 01-2.8 0z" strokeLinejoin="round" />
-      <circle cx="8" cy="9" r="1.3" />
+      <path d="M4.5 14v-2a7.5 7.5 0 0115 0v2" strokeLinecap="round" />
+      <rect x="2.6" y="13.6" width="4.2" height="6.2" rx="2.1" />
+      <rect x="17.2" y="13.6" width="4.2" height="6.2" rx="2.1" />
     </svg>
   );
 }

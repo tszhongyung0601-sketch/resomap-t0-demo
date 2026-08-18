@@ -43,6 +43,7 @@ import { Together, Prefs, Pool, ConsensusView } from "./screens/Together";
 import { BusinessDemo } from "./screens/BusinessDemo";
 import { Expenses, Settle, resetReceipts } from "./screens/Expenses";
 import { Today } from "./screens/Today";
+import { Library } from "./screens/Library";
 import { DemoPanel } from "./screens/DemoPanel";
 import type { Deal, StoryLength, Trip } from "./types";
 
@@ -263,6 +264,7 @@ export default function App() {
   else if (route?.k === "transport") screen = <TransportFlow destId={route.destId} />;
   else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
+  else if (route?.k === "deals") screen = <Deals destId={focus?.destId ?? null} />;
   else if (route?.k === "business") screen = <BusinessDemo />;
   else if (route?.k === "expenses") screen = <Expenses tripId={route.tripId} />;
   else if (route?.k === "settle") screen = <Settle tripId={route.tripId} />;
@@ -323,8 +325,8 @@ export default function App() {
       case "trips":
         screen = <Trips trips={trips} />;
         break;
-      case "deals":
-        screen = <Deals destId={focus?.destId ?? null} />;
+      case "library":
+        screen = <Library />;
         break;
       default:
         screen = <Explore trips={trips} />;

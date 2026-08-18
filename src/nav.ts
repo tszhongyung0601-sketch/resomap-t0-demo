@@ -26,6 +26,7 @@ export type Route =
   | { k: "expenses"; tripId: string }
   | { k: "settle"; tripId: string }
   | { k: "today"; tripId: string }
+  | { k: "deals" }
   | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a
@@ -37,7 +38,11 @@ export type Route =
   | { k: "pool" }
   | { k: "consensus2" };
 
-export type Tab = "explore" | "trips" | "together" | "deals";
+/* 導覽庫 replaced 優惠 in the bar. Deals did not go away — it moved behind the
+   trip that gives it a reason to exist, which is what MODEL B claims anyway:
+   a shop window nobody asked for earns less than an offer at the moment of
+   need. The `deals` route still renders the same six-tab screen. */
+export type Tab = "explore" | "library" | "trips" | "together";
 
 /**
  * Everything a screen is allowed to do to the rest of the app.

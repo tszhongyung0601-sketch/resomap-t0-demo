@@ -1,36 +1,42 @@
-import { ME, STORIES, TW_DESTINATIONS, poi, poisForDest, storiesForDest } from "../data";
+import { useMemo, useState } from "react";
+import { TW_DESTINATIONS, dest, poi, poisForDest, storiesForDest } from "../data";
+import { BrandBar } from "../components/BrandBar";
 import { PoiImage } from "../components/Cover";
-import { photoFor } from "../data/imagePrompts";
-import { Avatar, Button, Card, Headphones, Screen } from "../components/ui";
+import { MapCredit, MapView, PinLegend, type MapPin } from "../components/MapView";
+import { Button, Card, Headphones, Screen, Tag } from "../components/ui";
+import { distance } from "../lib/geo";
+import { hasStory, playLabel, rating, storyRail } from "../lib/story";
 import { focusTrip } from "../lib/trip";
 import { useNav } from "../nav";
-import type { Destination, Story, Trip } from "../types";
+import type { Destination, Poi, Story, Trip } from "../types";
 
 /**
- * Home, in five sections.
+ * Home. The map leads, and everything else scrolls past it.
  *
- * It used to carry eight, and three of those were the same kind of thing:
- * more places to look at, stacked under the places you were already looking at.
- * What is left answers the two questions somebody actually opens this app with
- * — "where am I going next" and "where could I go" — plus the doors that follow
- * from having answered them.
+ * The old version opened with a headline, a grey search button and two grey
+ * buttons — four rows of chrome before anything about a place. What it is now
+ * is the boss's own mock-up: the orange bar, the island full of pins, a search
+ * field sitting on the map's lower edge, and then the two things a traveller
+ * actually came back for — what there is to listen to, and the trip they are on.
  *
- * There is exactly one orange button on this screen, and which one it is
- * depends on whether a trip exists. With a trip, the trip owns it; without one,
- * the planner does.
+ * The map is a block, not a screen. It is ~380px tall and the page keeps
+ * scrolling underneath it, which is the difference between "the map leads" and
+ * "the app is a map".
+ *
+ * Orange budget: the BrandBar is brand rather than action, and the single
+ * filled orange button belongs to the trip card. Nothing else on this screen is
+ * allowed to be orange — which is why the preview buttons in the guide rail are
+ * grey, and why 看全部導覽 is a card and not a CTA.
  */
 export function Explore({ trips }: { trips: Trip[] }) {
   const trip = focusTrip(trips);
-  const destId = trip?.destId;
-  const rail = storyRail(destId);
 
   return (
     <Screen>
-      <Hero hasTrip={Boolean(trip)} />
+      <BrandBar />
+      <MapBlock trip={trip} />
+      <GuideRail destId={trip?.destId} />
       {trip ? <NextTrip trip={trip} /> : <NoTrip />}
-      <Destinations />
-      <Services destId={destId} />
-      <StoryPlaces rail={rail} />
       {/* shrink-0 or it collapses: Screen is a flex column, and a spacer with no
           content is the first thing flexbox takes back when the page overflows. */}
       <div className="h-24 shrink-0" />
@@ -38,70 +44,301 @@ export function Explore({ trips }: { trips: Trip[] }) {
   );
 }
 
-/* --------------------------------------------------------------- 1 · hero */
+/* ------------------------------------------------- 1 · the map, and search */
 
-function Hero({ hasTrip }: { hasTrip: boolean }) {
+/** Roughly the centre of the island, framed so the whole of Taiwan fits. */
+const TW_CENTRE: [number, number] = [23.75, 120.95];
+const TW_ZOOM = 7;
+
+/** Distinct places on the itinerary — a lunch spot visited twice is one place. */
+const tripPois = (trip: Trip): string[] => [
+  ...new Set(trip.days.flatMap((d) => d.tracks.flatMap((t) => t.stops)).map((s) => s.poiId)),
+];
+
+/**
+ * The place that stands in for a city on the island map.
+ *
+ * `MapPin` takes a `Poi` and a `Destination` is not one, so a city cannot pin
+ * itself. Rather than widen the shared map component for one screen, each city
+ * is pinned at a real place inside it, chosen by a rule that keeps the pin's
+ * colour truthful:
+ *
+ *   · the city's most-played guide, when it has one — so an orange pin is
+ *     orange because that exact place has a recording, and the city does too;
+ *   · otherwise the place nearest the city centre, which has no guide, and
+ *     neither does anything else in that city, so navy is true both ways.
+ *
+ * The two readings — "this place has a guide" and "this city has a guide" — can
+ * therefore never disagree, which is the only thing that would make the legend
+ * a lie. `plays` is demo data, but it is only choosing which of a city's own
+ * places to drop the pin on; no number reaches the screen from it.
+ */
+function anchorFor(d: Destination): Poi | undefined {
+  const top = [...storiesForDest(d.id)].sort((a, b) => b.plays - a.plays)[0];
+  if (top) return poi(top.poiId);
+  /* 交通 is a station, not somewhere you go. It would be the nearest thing to
+     most city centres and the least useful pin on the map. */
+  const here = poisForDest(d.id).filter((p) => p.kind !== "transit");
+  return [...here].sort((a, b) => distance(d, a) - distance(d, b))[0];
+}
+
+const TW_ANCHORS: Poi[] = TW_DESTINATIONS.map(anchorFor).filter((p): p is Poi => Boolean(p));
+
+/**
+ * Two pin languages, because the map does two jobs.
+ *
+ * Choosing a city: colour is the answer to「哪裡有得聽」, so the pin is toned and
+ * the legend explains it. Looking at a trip: the question is「這趟會去哪」, the
+ * stops are metres apart and genuinely cluster — 24 of the 66 pairs on the 台南
+ * itinerary overlap at the zoom it fits to — so most colours would be hidden
+ * inside a bubble reading "5", and a key explaining a colour you cannot see is
+ * the decoration-pretending-to-be-data this app keeps deleting. There the pins
+ * stay the app's ordinary white emoji, and the guides are announced by the rail
+ * directly underneath and by the 🎧 badges on the timeline.
+ */
+const cityPin = (p: Poi): MapPin => ({ poi: p, tone: hasStory(p.id) ? "story" : "plain" });
+const stopPin = (p: Poi): MapPin => ({ poi: p });
+
+/**
+ * Two maps, one component.
+ *
+ * No trip: the island, one pin per Taiwan destination, tapping one opens that
+ * city. This is what the 探索台灣 card grid used to do, done in the place
+ * somebody would actually look for it.
+ *
+ * A trip: that city, pinned with the places the itinerary genuinely visits.
+ * Which trip is `focusTrip`'s answer and nobody else's — the same rule the
+ * card at the bottom of this screen and the deals tab both read, so the map can
+ * never open on a different city than the card underneath it.
+ */
+function MapBlock({ trip }: { trip?: Trip }) {
   const nav = useNav();
+  /**
+   * The island view, asked for while a trip exists.
+   *
+   * Without this the overview is unreachable in practice: App's INITIAL always
+   * holds two trips, so `focusTrip` always answers and the map always opens on a
+   * city. The one thing the boss's own mockup shows — Taiwan covered in pins —
+   * would never appear in a demo. It is a view, not a preference, so it lives in
+   * component state and resets when the screen does.
+   */
+  const [island, setIsland] = useState(false);
+  const focused = trip && !island ? trip : undefined;
+  const here = focused ? dest(focused.destId) : undefined;
+  /** The trip's city, whichever view is showing — the chip's label needs it. */
+  const home = trip ? dest(trip.destId)?.name : undefined;
+
+  const pins = useMemo<MapPin[]>(
+    () =>
+      focused
+        ? tripPois(focused).map(poi).filter(Boolean).map(stopPin)
+        : TW_ANCHORS.map(cityPin),
+    [focused],
+  );
+
   return (
-    <>
-      {/* No bell. There is no notification surface behind it, and a control
-          that does nothing is worse than an absent one. */}
-      <div className="flex items-center gap-2 px-5 pt-4">
-        <span className="grid size-7 place-items-center rounded-lg bg-brand text-[13px] font-black text-white">
-          R
-        </span>
-        <span className="text-[16px] font-bold text-ink">ResoMap</span>
-        <button
-          aria-label="我的"
-          onClick={() => nav.go({ k: "profile" })}
-          className="ml-auto grid size-11 place-items-center rounded-full active:bg-surface"
+    <div className="relative shrink-0 pb-6">
+      <div className="relative h-[380px] overflow-hidden">
+        <MapView
+          /* Remount when the map changes job: `centre` and `zoom` are the
+             container's initial view, so switching between the island and a
+             trip without a new key would leave the old framing in place. */
+          key={here?.id ?? "tw"}
+          pins={pins}
+          centre={here ? [here.lat, here.lng] : TW_CENTRE}
+          zoom={here?.zoom ?? TW_ZOOM}
+          fit={Boolean(here)}
+          /* The eight city anchors do not overlap at zoom 7 — grouping them hid
+             three cities behind a bubble reading "3", directly under a chip that
+             says there are eight. A trip's own stops keep clustering: they are
+             metres apart, not kilometres. */
+          spread={!focused}
+          onPick={(p) =>
+            /* An anchor pin belongs to the city it sits in, so the destination
+               comes off the place itself rather than from a parallel lookup
+               that could drift out of step with the pin list. */
+            focused ? nav.go({ k: "poi", id: p.id }) : nav.go({ k: "dest", id: p.destId })
+          }
+        />
+
+        {/* Tappable only when there is another view to go to. With no trip at
+            all the island is the only thing the map can show, and a control that
+            returns you to where you already are is the dead control this app
+            keeps removing. */}
+        <MapChip
+          onClick={trip ? () => setIsland((v) => !v) : undefined}
+          action={home ? (island ? `回到${home}` : "看全台") : undefined}
         >
-          <Avatar name={ME.name} color={ME.color} initial={ME.initial} size={30} />
-        </button>
-      </div>
+          {here ? `${here.name}・這趟會去的地方` : `台灣 ${TW_DESTINATIONS.length} 座城市`}
+        </MapChip>
+        {/* Only where the colour is the message. */}
+        {!focused && <PinLegend />}
 
-      <div className="px-5 pt-3">
-        <h1 className="text-[27px] font-bold leading-tight text-ink">今天想去哪？</h1>
-        <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">
-          讓 AI 幫你規劃，也陪你一路玩下去。
-        </p>
-
-        <button
-          onClick={() => nav.go({ k: "search", q: "" })}
-          className="mt-4 flex w-full items-center gap-2.5 rounded-2xl bg-surface px-4 py-4 text-left active:bg-surface-2"
-        >
-          <SearchIcon />
-          <span className="text-[14.5px] text-ink-3">搜尋城市、景點或想做的事</span>
-        </button>
-
-        {/* Two doors, and the loud one moves. When a trip exists, the card
-            below is what the traveller came back for, so planning a new one
-            steps back to grey rather than competing with it. */}
-        <div className="mt-2.5 flex gap-2.5">
-          <div className="flex-1">
-            <Button
-              variant={hasTrip ? "secondary" : "primary"}
-              onClick={() => nav.go({ k: "create" })}
-            >
-              ✨ AI 幫我規劃
-            </Button>
-          </div>
-          <div className="flex-1">
-            {/* Not 探索附近. The app never asks for geolocation — MapView says so
-                itself, and MapTab labels its distances 距地圖中心 for exactly
-                this reason. Opened without a trip the map is the whole island at
-                zoom 7, which is not anybody's 附近. */}
-            <Button variant="secondary" onClick={() => nav.go({ k: "map" })}>
-              🗺 在地圖上找
-            </Button>
-          </div>
+        {/* The tile licence requires the attribution to be visible, and its own
+            corner is where the search field lands. `MapCredit` pins itself to
+            its nearest positioned ancestor, so it is given one that stops short
+            of the field rather than being left underneath it. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[30px]">
+          <MapCredit />
         </div>
       </div>
-    </>
+
+      {/* Straddling the edge: 24px of the field is over the map and 24px is over
+          the page, which is what `pb-6` on the wrapper leaves room for. The
+          wrapper is deliberately not `overflow-hidden` — the map is, and the
+          field has to be able to hang out of it. */}
+      <button
+        onClick={() => nav.go({ k: "search", q: "" })}
+        className="absolute inset-x-4 bottom-0 z-20 flex h-12 items-center gap-2.5 rounded-full bg-bg px-4 text-left shadow-[0_4px_18px_rgba(0,0,0,.16)] active:bg-surface"
+      >
+        <SearchIcon />
+        <span className="truncate text-[14.5px] text-ink-3">
+          {here ? `搜尋${here.name}的景點、美食` : "搜尋城市、景點或想做的事"}
+        </span>
+      </button>
+    </div>
   );
 }
 
-/* ---------------------------------------------------------- 2 · next trip */
+/**
+ * What the map is showing, and — when there is a choice — what tapping does.
+ *
+ * The label states the state and the action states the destination, because a
+ * bare chevron on a chip that reads 「台南・這趟會去的地方」 does not tell anybody
+ * where it goes. The tap target is extended past the 30px visual with an
+ * ::after, the same trick Chip and Tabs use, rather than padding the pill to
+ * 44px and turning a caption into a button.
+ */
+function MapChip({
+  children,
+  onClick,
+  action,
+}: {
+  children: string;
+  onClick?: () => void;
+  action?: string;
+}) {
+  const base =
+    "absolute left-2.5 top-2.5 z-10 max-w-[74%] rounded-xl bg-bg/92 px-2.5 py-1.5 text-[11.5px] font-semibold text-ink-2 shadow-sm backdrop-blur";
+
+  if (!onClick) {
+    return <span className={`pointer-events-none truncate ${base}`}>{children}</span>;
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      aria-label={action}
+      className={`${base} flex items-center gap-1.5 text-left after:absolute after:inset-x-0 after:-inset-y-[7px] after:content-[''] active:bg-surface`}
+    >
+      <span className="truncate">{children}</span>
+      <span className="shrink-0 border-l border-line pl-1.5 text-brand">{action}</span>
+    </button>
+  );
+}
+
+/* ---------------------------------------------------------- 2 · the guides */
+
+/**
+ * Places worth listening to, this trip's city first.
+ *
+ * The ordering is `storyRail`'s, which 導覽庫 calls too — a guide that is third
+ * here and eleventh there would be two different answers to the same question.
+ *
+ * `Tag kind="demo"` sits once, on the section title. `plays` and `likes` are
+ * invented and `rating` is derived from them, so the disclosure belongs to the
+ * block that shows them; repeating it on all fifteen cards turns a disclosure
+ * into wallpaper and stops anybody reading it.
+ */
+function GuideRail({ destId }: { destId?: string }) {
+  const nav = useNav();
+  const rail = storyRail(destId);
+  if (!rail.length) return null;
+
+  return (
+    <section className="mt-7">
+      <div className="flex items-center gap-1.5 px-5 text-ink">
+        <Headphones size={15} />
+        <h2 className="text-[17px] font-bold">有故事的地方</h2>
+        <Tag kind="demo" />
+      </div>
+      <p className="mb-3 mt-1 px-5 text-[12.5px] text-ink-3">
+        語音導覽免費，可以先試聽 30 秒。
+      </p>
+
+      <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
+        {rail.map((s) => (
+          <GuideCard key={s.id} story={s} />
+        ))}
+
+        {/* The end of the rail, not a heading action. Somebody who has scrolled
+            fifteen cards is the person asking for the rest of them. */}
+        <button
+          onClick={() => nav.tab("library")}
+          className="flex w-[112px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-3 text-[13.5px] font-bold text-ink-2 active:bg-surface-2"
+        >
+          <span>看全部導覽</span>
+          <span className="text-[16px]" aria-hidden>
+            ›
+          </span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One guide.
+ *
+ * Two targets rather than one: the card opens the place, the pill plays the 30
+ * 秒 edit without leaving home — the whole point of a short cut is that you can
+ * hear it while deciding. They are siblings rather than nested, because a
+ * button inside a button is invalid markup and behaves differently in every
+ * browser.
+ *
+ * No price, ever. The guides are free, and a card that shows a figure teaches
+ * the opposite in one glance.
+ */
+function GuideCard({ story }: { story: Story }) {
+  const nav = useNav();
+  const p = poi(story.poiId);
+
+  return (
+    <div className="w-[184px] shrink-0">
+      <button onClick={() => nav.go({ k: "poi", id: story.poiId })} className="w-full text-left">
+        <div className="relative">
+          <PoiImage poi={p} height={112} radius={16} className="w-full" />
+          <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+            <Headphones size={10} />
+            <span className="num">{story.minutes} 分鐘</span>
+          </span>
+        </div>
+
+        <div className="mt-2 truncate text-[14.5px] font-bold text-ink">{p.name}</div>
+        <div className="truncate text-[12.5px] text-ink-3">{story.hook}</div>
+
+        {/* The rating is `likes / plays`, and both of its inputs are printed
+            next to it — a reader who doubts the 4.7 can check the arithmetic
+            rather than take it on faith. */}
+        <div className="mt-1 flex items-center gap-1.5 text-[11.5px] text-ink-3">
+          <span className="num font-semibold text-ink-2">★ {rating(story).toFixed(1)}</span>
+          <span aria-hidden>·</span>
+          <span className="num">{playLabel(story.plays)}</span>
+        </div>
+      </button>
+
+      <button
+        onClick={() => nav.play(story.poiId, "short")}
+        className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-surface text-[13px] font-bold text-ink active:bg-surface-2"
+      >
+        <PlayIcon />
+        試聽 30 秒
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ 3 · the trip */
 
 function when(trip: Trip): string {
   if (trip.phase === "ongoing") return `今天是第 ${trip.today} 天`;
@@ -110,11 +347,6 @@ function when(trip: Trip): string {
   if (trip.daysUntil === 1) return "明天出發";
   return `還有 ${trip.daysUntil} 天出發`;
 }
-
-/** Distinct places on the itinerary — a lunch spot visited twice is one place. */
-const tripPois = (trip: Trip): string[] => [
-  ...new Set(trip.days.flatMap((d) => d.tracks.flatMap((t) => t.stops)).map((s) => s.poiId)),
-];
 
 function NextTrip({ trip }: { trip: Trip }) {
   const nav = useNav();
@@ -129,7 +361,7 @@ function NextTrip({ trip }: { trip: Trip }) {
   const first = (day1?.tracks.flatMap((t) => t.stops) ?? []).slice(0, 4);
 
   return (
-    <div className="mt-6 px-5">
+    <div className="mt-7 px-5">
       <Card className="p-4">
         {/* A trip you are on day 2 of is not your "next" trip. The eyebrow read
             你的下一段旅程 directly above 今天是第 2 天, which is the card
@@ -177,8 +409,9 @@ function NextTrip({ trip }: { trip: Trip }) {
           </div>
         )}
 
-        {/* Whichever it is, it is the one orange button on the screen — the hero
-            drops to grey the moment a trip exists. */}
+        {/* The one filled orange button on the screen. The BrandBar above is a
+            field, not a control, and nothing in the guide rail is orange, so
+            this is the only thing on the page asking to be pressed. */}
         <div className="mt-4">
           {started ? (
             /* Today Mode, not the day timetable. 開始今天行程 sent the traveller
@@ -201,18 +434,36 @@ function NextTrip({ trip }: { trip: Trip }) {
           </div>
         )}
       </Card>
+
+      {/* What is left of 旅程服務.
+          The 2×2 tile grid went with the rest of the old page: four doors to a
+          shop, above the fold, on the home screen of a travel assistant. This
+          is the same supply behind one quiet row — and only once a trip exists,
+          because 為你推薦 is scoped to the trip's city and without one the
+          whole screen is a window nobody asked to look in. */}
+      <button
+        onClick={() => nav.go({ k: "deals" })}
+        className="mt-1.5 flex min-h-12 w-full items-center gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-ink-3 transition active:bg-surface"
+      >
+        <span aria-hidden>🎟</span>
+        <span className="flex-1">行程服務（門票 · 住宿 · 交通 · 租車）</span>
+        <span className="text-[15px]" aria-hidden>
+          ›
+        </span>
+      </button>
     </div>
   );
 }
 
 /**
- * No trip, and no sales pitch about it. The planner is already the orange
- * button in the hero; this row only has to say what the empty space means.
+ * No trip, and no sales pitch about it. One row that says what the empty space
+ * means and opens the planner — not a list of what the traveller has not booked
+ * yet.
  */
 function NoTrip() {
   const nav = useNav();
   return (
-    <div className="mt-6 px-5">
+    <div className="mt-7 px-5">
       <Card onClick={() => nav.go({ k: "create" })} className="flex items-center gap-3 p-4">
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-bold text-ink">還沒有旅程</div>
@@ -221,266 +472,6 @@ function NoTrip() {
         <span className="shrink-0 text-[15px] text-ink-3">›</span>
       </Card>
     </div>
-  );
-}
-
-/* -------------------------------------------------------- 3 · destinations */
-
-/** Stable per-id jitter, so two cities never draw the identical horizon. */
-function seed(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-/** Towards white when `t` is negative, towards ink when positive. */
-function tone(hex: string, t: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const target = t < 0 ? 255 : 22;
-  const k = Math.abs(t);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) =>
-    Math.round(c + (target - c) * k),
-  );
-  return `rgb(${ch.join(",")})`;
-}
-
-/**
- * A city's cover, built the way `Cover` builds a place's: layered gradients,
- * every value derived from the record itself, nothing to load. Cover takes a
- * Poi and a Destination is not one, so the scene is assembled here from the
- * destination's own tint rather than by widening a shared component.
- */
-function destScene(d: Destination): string {
-  const n = seed(d.id);
-  const horizon = 58 + (n % 13) - 6;
-  const sunX = 20 + (n % 60);
-  const hills = 34 + (n % 30);
-  const land = tone(d.tint, 0.24);
-  const deep = tone(d.tint, 0.46);
-  const sky = tone(d.tint, -0.4);
-  return [
-    `radial-gradient(52% 60% at ${sunX}% ${horizon - 20}%, rgba(255,241,214,.7) 0%, transparent 70%)`,
-    `radial-gradient(64% 30% at ${hills}% ${horizon}%, ${land} 0%, transparent 72%)`,
-    `radial-gradient(56% 24% at ${100 - hills}% ${horizon + 2}%, ${land} 0%, transparent 74%)`,
-    `linear-gradient(180deg, transparent ${horizon}%, ${land} ${horizon}%, ${deep} 100%)`,
-    `linear-gradient(180deg, ${sky} 0%, ${d.tint} ${horizon}%)`,
-  ].join(",");
-}
-
-/**
- * A city's picture: the manifest's photograph of one of its places once that
- * photograph has been shot, the generated scene until then.
- *
- * `PoiImage` needs a Poi and a Destination is not one, so the fallback stays
- * assembled from the destination's own tint rather than widening a shared
- * component — and the swap happens on its own the day a file lands in the
- * manifest, with no edit here.
- */
-function DestCover({ d }: { d: Destination }) {
-  const shot = poisForDest(d.id).find((p) => photoFor(p));
-  if (shot) {
-    return <PoiImage poi={shot} height={112} radius={16} emoji={false} className="w-full" />;
-  }
-  return (
-    <div
-      className="relative h-[112px] overflow-hidden rounded-2xl"
-      style={{ background: destScene(d) }}
-    >
-      <span className="absolute inset-0 grid place-items-center text-[36px]" aria-hidden>
-        {d.emoji}
-      </span>
-    </div>
-  );
-}
-
-function Destinations() {
-  const nav = useNav();
-  return (
-    <section className="mt-8">
-      {/* Not 熱門. This rail is `DESTINATIONS.filter(country === "tw")` in the
-          order somebody typed them, and nothing in the repo measures popularity.
-          Refusing to fabricate a trip count on the card and then claiming the
-          ranking in the heading would be the same lie, one line higher. */}
-      <h2 className="mb-3 px-5 text-[17px] font-bold text-ink">探索台灣</h2>
-      <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
-        {TW_DESTINATIONS.map((d) => (
-          <button
-            key={d.id}
-            onClick={() => nav.go({ k: "dest", id: d.id })}
-            className="w-[168px] shrink-0 text-left"
-          >
-            <DestCover d={d} />
-            <div className="mt-2 text-[15.5px] font-bold text-ink">{d.name}</div>
-            {/* The tagline, not a trip count. A fabricated popularity number is
-                the cheapest way to lose a reader who checks. */}
-            <div className="truncate text-[12.5px] text-ink-3">{d.tagline}</div>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------ 4 · services */
-
-/**
- * One service, as a card rather than an icon in a strip.
- *
- * The strip this replaces was four 48px circles with a one-word caption, which
- * reads as a settings menu: something you scan past. A card with a line telling
- * you what happens when you tap it is the difference between a label and a
- * door.
- *
- * That line is not orange. index.css reserves brand orange for "primary CTA,
- * selected state, AI highlight only", and a shelf of four services is none of
- * the three — four orange lines in a 2×2 grid is four adverts arguing with the
- * one orange button on the screen, which belongs to the trip.
- */
-function ServiceCard({
-  icon,
-  label,
-  cta,
-  onClick,
-}: {
-  icon: string;
-  label: string;
-  cta: string;
-  onClick: () => void;
-}) {
-  return (
-    <Card onClick={onClick} className="flex min-h-[92px] flex-col p-4">
-      <span className="text-[20px] leading-none" aria-hidden>
-        {icon}
-      </span>
-      <span className="mt-2.5 block text-[14.5px] font-bold leading-tight text-ink">{label}</span>
-      <span className="mt-1 block text-[12.5px] font-semibold leading-tight text-ink-2">{cta}</span>
-    </Card>
-  );
-}
-
-/**
- * Four doors, no logos.
- *
- * Need first, provider second: Klook and Booking exist on the screen after this
- * one, once the traveller has said what they are trying to do. Naming a
- * platform here would advertise a relationship this app does not have, and
- * would make the home screen of a travel assistant look like a marketplace.
- */
-function Services({ destId }: { destId?: string }) {
-  const nav = useNav();
-  return (
-    <section className="mt-8">
-      <h2 className="px-5 text-[17px] font-bold text-ink">旅程服務</h2>
-      <p className="mb-3 mt-1 px-5 text-[13px] text-ink-3">門票、住宿、交通，一起準備好。</p>
-
-      <div className="grid grid-cols-2 gap-2.5 px-5">
-        <ServiceCard
-          icon="🎟"
-          label="門票・體驗"
-          cta="查看景點票券"
-          onClick={() => nav.go({ k: "tickets", destId })}
-        />
-        <ServiceCard
-          icon="🏨"
-          label="住宿"
-          cta="比較住宿平台"
-          onClick={() => nav.go({ k: "stay", destId })}
-        />
-        <ServiceCard
-          icon="🚆"
-          label="交通"
-          cta="查看交通選項"
-          onClick={() => nav.go({ k: "transport", destId })}
-        />
-        <ServiceCard
-          icon="🚗"
-          label="租車・接送"
-          cta="查看租車與接送"
-          onClick={() => nav.go({ k: "carrental", destId })}
-        />
-      </div>
-
-      {/* Everything that did not earn a tile. Deliberately not a fifth card:
-          a sheet of odds and ends should not look like a service. */}
-      <div className="mt-1.5 px-5">
-        <button
-          onClick={nav.moreServices}
-          className="flex min-h-12 w-full items-center gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-ink-3 transition active:bg-surface"
-        >
-          <span aria-hidden>▦</span>
-          {/* The four names are MORE_SERVICES, in its order. The row used to
-              preview 保險, which is not what the sheet calls it (旅平險), and
-              skipped 機票比價 — the first thing actually behind the tap. */}
-          <span className="flex-1">更多服務（機票 · eSIM · 旅平險 · 優惠券）</span>
-          <span className="text-[15px]" aria-hidden>
-            ›
-          </span>
-        </button>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------- 5 · stories */
-
-/**
- * Places worth listening to, ordered by how likely they are to be reachable:
- * the focused trip's city first, then the rest of Taiwan, then abroad.
- *
- * Every story, not the first five. The rail used to stop at five and hand the
- * rest to a 探索更多故事 link, but there is no route that lists stories — the
- * link ran "故事" through the free-text search, which matches on POI name, area,
- * about and city and therefore matched nothing at all. A rail scrolls; that is
- * what it is for, and it beats a control whose only outcome was 找不到「故事」的結果.
- */
-function storyRail(destId?: string): Story[] {
-  const twIds = new Set(TW_DESTINATIONS.map((d) => d.id));
-  const here = destId ? storiesForDest(destId) : [];
-  const seen = new Set(here.map((s) => s.id));
-  const rest = STORIES.filter((s) => !seen.has(s.id));
-  const tw = rest.filter((s) => twIds.has(poi(s.poiId).destId));
-  const abroad = rest.filter((s) => !twIds.has(poi(s.poiId).destId));
-  return [...here, ...tw, ...abroad];
-}
-
-/**
- * Not "AI 語音導覽". Nobody wakes up wanting a feature — they want to know why
- * the wall in front of them is held together with oyster shells. So the card
- * sells the place, and the headphone mark is the only hint that there is a
- * recording behind it.
- */
-function StoryPlaces({ rail }: { rail: Story[] }) {
-  const nav = useNav();
-  if (!rail.length) return null;
-
-  return (
-    <section className="mt-8">
-      <div className="mb-3 flex items-center gap-1.5 px-5 text-ink">
-        <Headphones size={15} />
-        <h2 className="text-[17px] font-bold">有故事的地方</h2>
-      </div>
-
-      <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
-        {rail.map((s) => {
-          const p = poi(s.poiId);
-          return (
-            <button
-              key={s.id}
-              onClick={() => nav.go({ k: "poi", id: s.poiId })}
-              className="w-[150px] shrink-0 text-left"
-            >
-              <PoiImage poi={p} height={96} radius={16} />
-              <div className="mt-2 truncate text-[14.5px] font-bold text-ink">{p.name}</div>
-              <div className="truncate text-[12.5px] text-ink-3">{s.hook}</div>
-              <div className="mt-1 flex items-center gap-1 text-ink-3">
-                <Headphones size={11} />
-                <span className="num text-[12px]">{s.minutes} 分鐘</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -500,6 +491,14 @@ function SearchIcon() {
     >
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16l4 4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+      <path d="M3 1.6 10 6l-7 4.4z" />
     </svg>
   );
 }

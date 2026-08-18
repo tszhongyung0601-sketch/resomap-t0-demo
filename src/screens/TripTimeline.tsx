@@ -44,23 +44,34 @@ import {
 /* ------------------------------------------------------------- trip home */
 
 /**
- * The overview of one trip: who is coming, the days, and then the two things
- * the trip might still need.
+ * The overview of one trip: who is coming, the days, and then the things the
+ * trip might still need.
  *
  * The days come first. Somebody opening their own itinerary came to look at the
- * itinerary, and a screen that answers with two shopping blocks before the plan
+ * itinerary, and a screen that answers with a shopping block before the plan
  * has decided that its own traveller is a lead.
  *
- * Both contextual cards appear only when the trip actually lacks the thing, and
- * both state the fact rather than working the traveller: "這趟行程共 4 晚" is a
- * fact they can act on or ignore; "還沒安排住宿，先訂起來比較安心" is a nudge with
- * a deadline attached to somebody else's checkout. That is the whole difference
- * between a reminder and an ad — and it is also why neither card wears the
- * brand-orange fill that 加入行程 wears elsewhere in the app.
+ * 住宿 and 門票 used to be two stacked sections, which read as two shops rather
+ * than one answer to one question. They are now one 這趟需要的 section, and it
+ * is also where 優惠 is reached from: the tab is gone, so the shop opens from
+ * the trip that gives it a reason to exist rather than from the bar.
+ *
+ * Every card in it appears only when this trip's own data justifies it —
+ * `needsStay` for the stay card, a `ticketed: true` stop with a real listing
+ * for a ticket card — and each states the fact rather than working the
+ * traveller: "這趟行程共 4 晚" is a fact they can act on or ignore;
+ * "還沒安排住宿，先訂起來比較安心" is a nudge with a deadline attached to somebody
+ * else's checkout. That is the whole difference between a reminder and an ad —
+ * and it is also why nothing in the section wears the brand-orange fill that
+ * 加入行程 wears elsewhere in the app.
  */
 export function TripHome({ trip }: { trip: Trip }) {
   const nav = useNav();
   const tickets = ticketReminders(trip);
+  /* No section at all when the trip needs neither. A heading that says
+     這趟需要的 above nothing but a link to the shop is the shop window this
+     screen exists to avoid. */
+  const needs = trip.needsStay || tickets.deals.length > 0;
   /* The figure is the sum of this trip's receipts and nothing else — no
      budget, no projection, no "還差 N 元". A trip with no bills says so rather
      than showing NT$ 0, which reads as a total somebody worked out. */
@@ -138,46 +149,64 @@ export function TripHome({ trip }: { trip: Trip }) {
         />
       </div>
 
-      {trip.needsStay && (
-        <section className="mt-8 px-5">
-          <div className="rounded-2xl bg-surface p-4">
-            <div className="text-[15px] font-semibold text-ink">住宿</div>
-            <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-              這趟行程共 {trip.nights} 晚。要找住宿的話，從這裡開始。
-            </p>
-            <div className="mt-3.5">
-              <Button
-                variant="onCard"
-                onClick={() => nav.go({ k: "stay", destId: trip.destId })}
-                full={false}
-              >
-                查看住宿
-              </Button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {tickets.deals.length > 0 && (
-        <section className="mt-6">
+      {needs && (
+        <Section title="這趟需要的">
           <div className="px-5">
-            <div className="text-[15px] font-semibold text-ink">門票</div>
-            {/* What is true — these places sell admission — and nothing about
-                what happens if you leave it. The card only exists because the
-                itinerary contains a venue that genuinely charges entry; that
-                fact is the reminder, and a deadline stapled to it would be a
-                sales line wearing a reminder's clothes. */}
-            <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-              {tickets.names.join("、")}需要購票入場。
-            </p>
-            <div className="mt-3 space-y-2">
-              {tickets.deals.map((d) => (
-                <DealCard key={d.id} deal={d} onOpen={nav.openDeal} compact />
-              ))}
-            </div>
+            {trip.needsStay && (
+              <div className="rounded-2xl bg-surface p-4">
+                <div className="text-[15px] font-semibold text-ink">住宿</div>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+                  這趟行程共 {trip.nights} 晚。要找住宿的話，從這裡開始。
+                </p>
+                <div className="mt-3.5">
+                  <Button
+                    variant="onCard"
+                    onClick={() => nav.go({ k: "stay", destId: trip.destId })}
+                    full={false}
+                  >
+                    查看住宿
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {tickets.deals.length > 0 && (
+              <div className={trip.needsStay ? "mt-4" : ""}>
+                {/* What is true — these places sell admission — and nothing
+                    about what happens if you leave it. The line only exists
+                    because the itinerary contains a venue that genuinely
+                    charges entry; that fact is the reminder, and a deadline
+                    stapled to it would be a sales line wearing a reminder's
+                    clothes. It also names the places, which is what keeps this
+                    section 這趟 rather than 熱門. */}
+                <p className="text-[13px] leading-relaxed text-ink-3">
+                  {tickets.names.join("、")}需要購票入場。
+                </p>
+                <div className="mt-2.5 space-y-2">
+                  {tickets.deals.map((d) => (
+                    <DealCard key={d.id} deal={d} onOpen={nav.openDeal} compact />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* The way out to everything else, deliberately last and
+                deliberately quiet: what this trip needs is the content, and the
+                shop is the footnote to it — not the other way round. */}
+            <button
+              onClick={() => nav.go({ k: "deals" })}
+              className="mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-2xl px-1 text-left active:bg-surface"
+            >
+              <span className="flex-1 text-[14.5px] font-semibold text-ink">
+                看全部優惠
+              </span>
+              <span className="shrink-0 text-[15px] text-ink-3">›</span>
+            </button>
           </div>
+          {/* Once, for the whole section — it covers the ticket prices above it
+              and the 住宿 listings the card leads to. */}
           <Note>{AFFILIATE_DISCLOSURE}</Note>
-        </section>
+        </Section>
       )}
 
       {/* `shrink-0`, or this spacer is not there at all. Screen is a flex
