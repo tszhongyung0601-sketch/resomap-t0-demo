@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AFFILIATE_DISCLOSURE, POIS, dealsForPoi, poi } from "../data";
 import { story } from "../data/stories";
-import { AiSceneNote, PoiImage } from "../components/Cover";
+import { AiSceneNote, PhotoCredit, PoiImage } from "../components/Cover";
 import { sceneFor } from "../data/imagePrompts";
 import { DealCard } from "../components/DealCard";
 import { Button, Headphones, Note, Screen, Section, StoryBadge, Thumb } from "../components/ui";
@@ -199,7 +199,7 @@ export function Poi({ id }: { id: string }) {
           have to know which it got. Square corners: it runs to the edges of the
           screen, so a radius here would only cut the status bar. */}
       <div className="relative shrink-0">
-        <PoiImage poi={p} height={220} radius={0} emoji />
+        <PoiImage poi={p} height={220} radius={0} emoji large />
         <button
           onClick={() => nav.back()}
           aria-label="返回"
@@ -222,6 +222,12 @@ export function Poi({ id }: { id: string }) {
           {saved ? "♥" : "♡"}
         </button>
       </div>
+
+      {/* Directly under the image, because that is what the licence asks for and
+          because a credit filed on some other screen is not a credit. Renders
+          nothing when the cover is the generated graphic — there is nobody to
+          credit for that. */}
+      <PhotoCredit poi={p} />
 
       <div className="px-5 pt-5">
         <h1 className="text-[22px] font-bold leading-snug text-ink">{p.name}</h1>

@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { POIS, poi, poisForDest } from "../data";
 import { distance, km } from "../lib/geo";
+import { lookupPlaceLink } from "../lib/placelink";
+import { hasStory } from "../lib/story";
 import { useNav } from "../nav";
-import { Row, Sheet, Thumb } from "../components/ui";
-import { POI_KIND_LABELS, type Poi } from "../types";
+import { Button, Row, Sheet, StoryBadge, Thumb } from "../components/ui";
+import { POI_KIND_LABELS, type Poi, type Trip } from "../types";
 
 /**
  * Adding a place is a two-second job, so it stays a sheet over the day you are
@@ -86,7 +88,9 @@ export function AddPoiSheet({
 
   return (
     <Sheet open onClose={onClose} title="加入景點">
-      <div className="px-5 pb-1">
+      <PasteLink trip={trip} day={day} onAdded={onClose} />
+
+      <div className="px-5 pb-1 pt-1">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -141,6 +145,132 @@ export function AddPoiSheet({
         />
       </Group>
     </Sheet>
+  );
+}
+
+/* ------------------------------------------------------ paste a Google link */
+
+/**
+ * Paste a Google Maps link, get the place.
+ *
+ * Everything happens on the string. There is no backend and the browser cannot
+ * fetch google.com, so the only links that can work are the long ones a desktop
+ * Google Maps produces — and the phone's share sheet produces short ones. Rather
+ * than failing quietly on the most common input, each outcome says exactly what
+ * happened, including what name the app managed to read. A traveller who can see
+ * that it read 「台北車站」 knows the paste worked and the data does not have the
+ * place; a blank result teaches them nothing.
+ *
+ * Nothing is added until 加入 is pressed, and the day is theirs to pick. The old
+ * flow appended to whichever day the sheet was opened on, which is right when you
+ * tapped ＋ on that day and wrong when you arrive holding a link for a place you
+ * meant to visit on Thursday.
+ */
+function PasteLink({
+  trip,
+  day,
+  onAdded,
+}: {
+  trip: Trip;
+  day: number;
+  onAdded: () => void;
+}) {
+  const nav = useNav();
+  const [text, setText] = useState("");
+  const [pick, setPick] = useState(day);
+
+  const found = useMemo(() => (text.trim() ? lookupPlaceLink(text) : null), [text]);
+  const already = useMemo(() => {
+    if (found?.kind !== "found") return false;
+    const onDay = trip.days.find((d) => d.n === pick);
+    return Boolean(
+      onDay?.tracks.some((t) => t.stops.some((s) => s.poiId === found.poi.id)),
+    );
+  }, [found, trip, pick]);
+
+  return (
+    <div className="px-5 pt-1">
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="貼上 Google 地圖連結"
+        inputMode="url"
+        autoComplete="off"
+        className="h-11 w-full rounded-full bg-surface px-4 text-[14.5px] text-ink outline-none placeholder:text-ink-3"
+      />
+
+      {found?.kind === "short" && (
+        <Note>
+          這種短連結需要連網才解得開。請在電腦版 Google 地圖複製網址，或直接輸入景點名稱。
+        </Note>
+      )}
+
+      {found?.kind === "unknown" && (
+        <Note>看不出這是哪個地方。可以貼 Google 地圖的網址，或直接輸入景點名稱。</Note>
+      )}
+
+      {found?.kind === "not-in-data" && (
+        <Note>
+          讀到「{found.name}」，但這個地方還不在 ResoMap 的資料裡。
+        </Note>
+      )}
+
+      {found?.kind === "found" && (
+        <div className="mt-2.5 rounded-2xl bg-surface p-3.5">
+          <div className="flex items-center gap-3">
+            <Thumb emoji={found.poi.emoji} tint={found.poi.tint} size={44} radius={12} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[15px] font-semibold text-ink">
+                  {found.poi.name}
+                </span>
+                {hasStory(found.poi.id) && <StoryBadge label={false} />}
+              </div>
+              <div className="mt-0.5 truncate text-[12.5px] text-ink-3">
+                {found.poi.area} · {POI_KIND_LABELS[found.poi.kind]} · 建議停留{" "}
+                {found.poi.stayMin} 分
+              </div>
+            </div>
+          </div>
+
+          {/* One chip per day the trip actually has — never a fixed seven. */}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {trip.days.map((d) => (
+              <button
+                key={d.n}
+                onClick={() => setPick(d.n)}
+                className={`min-h-11 rounded-full px-3 text-[13px] font-semibold transition ${
+                  d.n === pick ? "bg-brand text-white" : "bg-bg text-ink-2 active:bg-surface-2"
+                }`}
+              >
+                Day {d.n}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3">
+            <Button
+              variant="onCard"
+              disabled={already}
+              onClick={() => {
+                nav.addPoi(trip.id, pick, found.poi.id);
+                setText("");
+                onAdded();
+              }}
+            >
+              {already ? `Day ${pick} 已經有這個地點` : `加入 Day ${pick}`}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The one-line answer under the field. Never phrased as the traveller's fault. */
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <p className="mt-2 px-1 text-[12.5px] leading-relaxed text-ink-2">{children}</p>
   );
 }
 

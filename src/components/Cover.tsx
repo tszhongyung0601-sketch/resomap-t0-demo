@@ -150,17 +150,24 @@ export function PoiImage({
   height = 120,
   radius = 14,
   emoji = true,
+  large = false,
   className = "",
 }: {
   poi: Poi;
   height?: number | string;
   radius?: number;
   emoji?: boolean;
+  /** Ask for the 1600px file. Only for slots that fill the screen width. */
+  large?: boolean;
   className?: string;
 }) {
   const shot = photoFor(poi);
   const [failed, setFailed] = useState(false);
-  const showPhoto = Boolean(shot?.src) && !failed;
+  /* One base per size rather than a 1x/2x srcSet off a single file: the two files
+     are cropped differently (4:3 for cards, 16:9 for heroes), so they are not the
+     same image at two scales and pretending otherwise would letterbox one of them. */
+  const src = large ? (shot?.srcLarge ?? shot?.src) : shot?.src;
+  const showPhoto = Boolean(src) && !failed;
 
   return (
     <div
@@ -169,10 +176,9 @@ export function PoiImage({
     >
       <Generated poi={poi} radius={radius} emoji={emoji && !showPhoto} />
 
-      {showPhoto && shot?.src && (
+      {showPhoto && src && (
         <img
-          src={shot.src}
-          srcSet={`${shot.src} 1x, ${shot.src.replace(/(\.\w+)$/, "@2x$1")} 2x`}
+          src={`${import.meta.env.BASE_URL}${src}`}
           alt={poi.name}
           loading="lazy"
           decoding="async"
@@ -182,6 +188,33 @@ export function PoiImage({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Photographer and licence, under the image.
+ *
+ * Every CC licence except CC0 requires attribution, so this is a licence term
+ * rather than a caption — a photo shipped without it is a breach. CC0 waives the
+ * requirement, but the line still names the photographer: they gave the work
+ * away and saying who they were costs nothing.
+ */
+export function PhotoCredit({ poi }: { poi: Poi }) {
+  const shot = photoFor(poi);
+  const c = shot?.credit;
+  if (!c) return null;
+  return (
+    <p className="px-5 pt-1.5 text-[11px] leading-relaxed text-ink-3">
+      照片：
+      <a href={c.source} target="_blank" rel="noopener noreferrer" className="underline">
+        {c.author}
+      </a>
+      {" / "}
+      <a href={c.licenceUrl} target="_blank" rel="noopener noreferrer" className="underline">
+        {c.licence}
+      </a>
+      {" · via Wikimedia Commons"}
+    </p>
   );
 }
 

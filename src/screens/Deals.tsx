@@ -6,8 +6,9 @@ import { focusTrip } from "../lib/trip";
 import { useNav } from "../nav";
 import { DEAL_CATEGORY_LABELS } from "../types";
 import type { Deal, DealCategory, Trip } from "../types";
+import type { DealsTab } from "../nav";
 
-type TabId = "reco" | "ticket" | "stay" | "transport" | "car" | "more";
+type TabId = DealsTab;
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "reco", label: "為你推薦" },
@@ -157,9 +158,11 @@ function recoNote(city: string | null, hasTrip: boolean): string {
  * being an ad break. 為你推薦 is the traveller's own trip first; the five
  * category tabs exist for the rarer case of browsing on purpose.
  */
-export function Deals({ destId }: { destId: string | null }) {
+export function Deals({ destId, tab: initial }: { destId: string | null; tab?: TabId }) {
   const nav = useNav();
-  const [tab, setTab] = useState<TabId>("reco");
+  /* Seeded, not controlled: the caller says where to start and the reader is
+     free to move. A controlled tab would snap back every time App re-rendered. */
+  const [tab, setTab] = useState<TabId>(initial ?? "reco");
 
   /* App hands over the focused trip's city; resolving the trip here as well is
      what makes 你已加入 Day N possible, and the fallback keeps the screen

@@ -264,7 +264,8 @@ export default function App() {
   else if (route?.k === "transport") screen = <TransportFlow destId={route.destId} />;
   else if (route?.k === "carrental") screen = <CarRentalFlow destId={route.destId} />;
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
-  else if (route?.k === "deals") screen = <Deals destId={focus?.destId ?? null} />;
+  else if (route?.k === "deals")
+    screen = <Deals destId={focus?.destId ?? null} tab={route.tab} />;
   else if (route?.k === "business") screen = <BusinessDemo />;
   else if (route?.k === "expenses") screen = <Expenses tripId={route.tripId} />;
   else if (route?.k === "settle") screen = <Settle tripId={route.tripId} />;

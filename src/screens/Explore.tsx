@@ -7,7 +7,7 @@ import { Button, Card, Headphones, Screen, Tag } from "../components/ui";
 import { distance } from "../lib/geo";
 import { hasStory, playLabel, rating, storyRail } from "../lib/story";
 import { focusTrip } from "../lib/trip";
-import { useNav } from "../nav";
+import { useNav, type Route } from "../nav";
 import type { Destination, Poi, Story, Trip } from "../types";
 
 /**
@@ -35,8 +35,12 @@ export function Explore({ trips }: { trips: Trip[] }) {
     <Screen>
       <BrandBar />
       <MapBlock trip={trip} />
-      <GuideRail destId={trip?.destId} />
+      {/* The trip sits above the guides: somebody who is mid-journey opens this
+          screen for their own itinerary, and making them scroll past fifteen
+          other people's stories to reach 開始今天行程 gets the order backwards. */}
       {trip ? <NextTrip trip={trip} /> : <NoTrip />}
+      <GuideRail destId={trip?.destId} />
+      <ServiceGrid />
       {/* shrink-0 or it collapses: Screen is a flex column, and a spacer with no
           content is the first thing flexbox takes back when the page overflows. */}
       <div className="h-24 shrink-0" />
@@ -435,23 +439,82 @@ function NextTrip({ trip }: { trip: Trip }) {
         )}
       </Card>
 
-      {/* What is left of 旅程服務.
-          The 2×2 tile grid went with the rest of the old page: four doors to a
-          shop, above the fold, on the home screen of a travel assistant. This
-          is the same supply behind one quiet row — and only once a trip exists,
-          because 為你推薦 is scoped to the trip's city and without one the
-          whole screen is a window nobody asked to look in. */}
-      <button
-        onClick={() => nav.go({ k: "deals" })}
-        className="mt-1.5 flex min-h-12 w-full items-center gap-2 rounded-xl px-1 text-left text-[13px] font-semibold text-ink-3 transition active:bg-surface"
-      >
-        <span aria-hidden>🎟</span>
-        <span className="flex-1">行程服務（門票 · 住宿 · 交通 · 租車）</span>
-        <span className="text-[15px]" aria-hidden>
-          ›
-        </span>
-      </button>
     </div>
+  );
+}
+
+/* -------------------------------------------------------- 4 · 旅程服務宮格 */
+
+/**
+ * The nine services, as a grid.
+ *
+ * This is MODEL A stated plainly (see BusinessDemo.tsx): everybody who opens the
+ * app sees the same nine doors, regardless of where they are going. So it renders
+ * with or without a trip — scoping it to a trip would make it MODEL B, which is
+ * what the deal cards inside a trip already are.
+ *
+ * The tints are deliberately not nine orange discs. The orange BrandBar is at the
+ * top of this page and 開始今天行程 is its one filled orange call to action; nine
+ * saturated circles here would be nine adverts arguing with it. Each category gets
+ * a pale wash instead, which separates them without any of them shouting.
+ */
+const SERVICES: { label: string; icon: string; tint: string; go: Route }[] = [
+  { label: "門票・體驗", icon: "🎟", tint: "bg-brand-wash", go: { k: "tickets" } },
+  { label: "住宿", icon: "🏨", tint: "bg-surface-2", go: { k: "stay" } },
+  { label: "交通", icon: "🚆", tint: "bg-surface-2", go: { k: "transport" } },
+  { label: "租車・接送", icon: "🚗", tint: "bg-surface-2", go: { k: "carrental" } },
+  /* 機票 has no inventory of its own — dealsForService("flight") returns nothing
+     on purpose. It goes to 交通, which really does hold 高鐵 and 台鐵, rather than
+     to an empty screen or a 即將推出 stamp on a tile nobody can use. */
+  { label: "機票", icon: "✈️", tint: "bg-surface-2", go: { k: "transport" } },
+  { label: "eSIM", icon: "📶", tint: "bg-surface-2", go: { k: "service", id: "esim" } },
+  { label: "旅平險", icon: "🛡️", tint: "bg-surface-2", go: { k: "service", id: "insurance" } },
+  /* 在地優惠 lands on 更多, which is where the local-merchant deals actually are.
+     Those four are all comingLater, so the tile leads to a real state rather than
+     a real product — which is the honest version, not an empty door. */
+  { label: "在地優惠", icon: "🏪", tint: "bg-surface-2", go: { k: "deals", tab: "more" } },
+  { label: "全部優惠", icon: "％", tint: "bg-brand-wash", go: { k: "deals" } },
+];
+
+function ServiceGrid() {
+  const nav = useNav();
+  return (
+    <section className="mt-8">
+      {/* 旅程服務, not 你的旅行還缺什麼. The heading names the shelf; it does not
+          count what the traveller has failed to book. */}
+      <h2 className="px-5 text-[17px] font-bold text-ink">旅程服務</h2>
+      <p className="mt-1 px-5 text-[12.5px] leading-relaxed text-ink-3">
+        門票、住宿、交通，需要的時候從這裡出發。
+      </p>
+
+      {/* Five then four. grid-cols-5 with the last row left-aligned reads as an
+          unfinished row, so the ninth tile is given its own centred slot by
+          spanning the middle column. */}
+      <div className="mt-4 grid grid-cols-5 gap-x-1 gap-y-4 px-3">
+        {SERVICES.map((sv, i) => (
+          <button
+            key={sv.label}
+            onClick={() => nav.go(sv.go)}
+            /* min-h-[76px] and a 46px disc put the whole tile past 44px without
+               an ::after, because here the tile *is* the target, not a pill
+               sitting inside a bigger row. */
+            className={`flex min-h-[76px] flex-col items-center gap-1.5 rounded-xl px-0.5 py-1 transition active:bg-surface ${
+              i === 8 ? "col-start-3" : ""
+            }`}
+          >
+            <span
+              className={`grid size-[46px] shrink-0 place-items-center rounded-full text-[20px] ${sv.tint}`}
+              aria-hidden
+            >
+              {sv.icon}
+            </span>
+            <span className="text-center text-[11.5px] font-semibold leading-tight text-ink-2">
+              {sv.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -26,7 +26,11 @@ export type Route =
   | { k: "expenses"; tripId: string }
   | { k: "settle"; tripId: string }
   | { k: "today"; tripId: string }
-  | { k: "deals" }
+  /* `tab` lets a caller land on a specific category. 在地優惠 on the home grid
+     needs it: the local-merchant deals live under 更多, and dropping the reader
+     on 為你推薦 and letting them hunt is the difference between an entry point
+     and a link. */
+  | { k: "deals"; tab?: DealsTab }
   | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a
@@ -43,6 +47,9 @@ export type Route =
    a shop window nobody asked for earns less than an offer at the moment of
    need. The `deals` route still renders the same six-tab screen. */
 export type Tab = "explore" | "library" | "trips" | "together";
+
+/** The 優惠 screen's own tabs. Mirrored in Deals.tsx's TABS. */
+export type DealsTab = "reco" | "ticket" | "stay" | "transport" | "car" | "more";
 
 /**
  * Everything a screen is allowed to do to the rest of the app.
