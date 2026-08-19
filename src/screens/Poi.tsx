@@ -9,6 +9,7 @@ import { distance, km } from "../lib/geo";
 import { dur } from "../lib/adapt";
 import { openDirections } from "../lib/maps";
 import { track } from "../lib/track";
+import { togglePoi, useSaved } from "../lib/saved";
 import { useNav } from "../nav";
 import { POI_KIND_LABELS, type Story } from "../types";
 
@@ -113,19 +114,20 @@ export function Poi({ id }: { id: string }) {
   const p = poi(id);
 
   /**
-   * Both pieces of state are keyed by POI id, and neither may be a bare boolean.
+   * Saved state comes from the shared store, and must stay keyed by POI id.
    *
    * `id` changes without this component unmounting: every 附近 row navigates to
-   * another place, and App renders the same <Poi> in the same position, so React
-   * keeps the instance and its state. A boolean therefore belonged to whichever
-   * place happened to be open when it was set — save 赤崁樓, tap 神農街 in 附近,
-   * and 神農街 opened with the heart already filled against a place the traveller
-   * had never saved. The effect below was already written with `[id]` for exactly
-   * this reason; the state had not caught up with it.
+   * another place and App renders the same <Poi> in the same position, so React
+   * keeps the instance. A bare boolean therefore belonged to whichever place
+   * happened to be open when it was set — save 赤崁樓, tap 神農街 in 附近, and
+   * 神農街 opened with the heart already filled. An id-keyed Set fixed that but
+   * still forgot on reload, which makes the heart a toggle that lies about what
+   * it does. lib/saved.ts keeps both properties: keyed by id, and written
+   * through, so this heart and the 收藏 screen cannot disagree.
    */
-  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const { pois: savedPois } = useSaved();
   const [sceneFailedId, setSceneFailedId] = useState<string | null>(null);
-  const saved = savedIds.has(id);
+  const saved = savedPois.includes(id);
 
   useEffect(() => {
     track("poi_view", { poiId: id });
@@ -168,15 +170,6 @@ export function Poi({ id }: { id: string }) {
   const tickets = p.ticketed ? attached.filter((d) => d.category === "ticket") : [];
   const localOffers = attached.filter((d) => d.category === "local");
 
-  function toggleSaved() {
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   function addToTrip() {
     /* nav.trips, not the TRIPS export. The export is the starting fixture: it
        still lists a 台南 trip after the demo has been reset, so this reported
@@ -208,7 +201,7 @@ export function Poi({ id }: { id: string }) {
           ‹
         </button>
         <button
-          onClick={toggleSaved}
+          onClick={() => togglePoi(id)}
           aria-label={saved ? "取消收藏" : "收藏"}
           aria-pressed={saved}
           className={`absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-bg/90 text-[18px] active:bg-bg ${

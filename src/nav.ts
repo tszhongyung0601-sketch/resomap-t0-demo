@@ -31,6 +31,7 @@ export type Route =
      on 為你推薦 and letting them hunt is the difference between an entry point
      and a link. */
   | { k: "deals"; tab?: DealsTab }
+  | { k: "saved" }
   | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a

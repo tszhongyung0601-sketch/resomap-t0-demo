@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { poi } from "../data";
 import { story } from "../data/stories";
+import { toggleStory, useSaved } from "../lib/saved";
 import { createPlayer, formatClock, splitSentences, type VoicePlayer } from "../lib/speech";
 import { track } from "../lib/track";
 import { Button, Headphones, Segmented, Sheet, Tag, Thumb } from "./ui";
@@ -149,7 +150,12 @@ export function StoryPlayer({
   const [playing, setPlaying] = useState(false);
   const [line, setLine] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  const [saved, setSaved] = useState(false);
+  /* Shared and persisted, keyed by story id — 收藏 reads the same list. */
+  /* Hook first, question after: putting useSaved() behind `s &&` makes it a
+     conditional call, and the hook order changes the moment a story is
+     missing. Read the list unconditionally, then ask about it. */
+  const savedStories = useSaved().stories;
+  const saved = Boolean(s && savedStories.includes(s.id));
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -298,7 +304,7 @@ export function StoryPlayer({
           <span className="num shrink-0">{s.plays.toLocaleString()} 次播放</span>
           <Tag kind="demo" />
           <button
-            onClick={() => setSaved((v) => !v)}
+            onClick={() => s && toggleStory(s.id)}
             aria-pressed={saved}
             className={`ml-auto inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-2.5 text-[12px] font-semibold ${
               saved ? "bg-surface-2 text-ink" : "bg-surface text-ink-2 active:bg-surface-2"

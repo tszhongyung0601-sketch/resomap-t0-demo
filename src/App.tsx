@@ -42,8 +42,10 @@ import { Profile } from "./screens/Profile";
 import { Together, Prefs, Pool, ConsensusView } from "./screens/Together";
 import { BusinessDemo } from "./screens/BusinessDemo";
 import { Expenses, Settle, resetReceipts } from "./screens/Expenses";
+import { resetSaved } from "./lib/saved";
 import { Today } from "./screens/Today";
 import { Library } from "./screens/Library";
+import { Saved } from "./screens/Saved";
 import { DemoPanel } from "./screens/DemoPanel";
 import type { Deal, StoryLength, Trip } from "./types";
 
@@ -175,6 +177,9 @@ export default function App() {
        out loud — otherwise a bill entered in one demo run is still there in the
        next one, under a trip that has been rolled back. */
     resetReceipts();
+    /* The saved shelf is a third module store outside `trips`; a demo reset that
+       leaves yesterday's hearts filled is not a reset. */
+    resetSaved();
     setAdapt(null);
     setUsedAdapts([]);
     setArrival(null);
@@ -266,6 +271,7 @@ export default function App() {
   else if (route?.k === "service") screen = <ServiceFlow id={route.id} />;
   else if (route?.k === "deals")
     screen = <Deals destId={focus?.destId ?? null} tab={route.tab} />;
+  else if (route?.k === "saved") screen = <Saved />;
   else if (route?.k === "business") screen = <BusinessDemo />;
   else if (route?.k === "expenses") screen = <Expenses tripId={route.tripId} />;
   else if (route?.k === "settle") screen = <Settle tripId={route.tripId} />;

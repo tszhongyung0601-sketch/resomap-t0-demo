@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useNav } from "../nav";
 import { Avatar, Row, Screen, TopBar } from "../components/ui";
 import { ME } from "../data/travellers";
+import { useSaved } from "../lib/saved";
 import { focusTrip } from "../lib/trip";
 
 /**
@@ -32,6 +33,8 @@ export function Profile() {
   /* The same trip the home card and the deals tab are showing. 記帳 / 分帳 is
      per-trip, so the row can only be live when there is one to open. */
   const trip = focusTrip(nav.trips);
+  const saved = useSaved();
+  const savedCount = saved.pois.length + saved.stories.length;
 
   return (
     <Screen>
@@ -69,7 +72,15 @@ export function Profile() {
       </RowGroup>
 
       <RowGroup title="我的">
-        <Row icon="🔖" label="收藏" />
+        {/* Was stamped 即將推出 while the hearts on POI and story pages already
+            worked — the drawer contradicting the product. The count is the two
+            shelves added up, not a stored number. */}
+        <Row
+          icon="🔖"
+          label="收藏"
+          value={savedCount > 0 ? `${savedCount}` : undefined}
+          onClick={() => nav.go({ k: "saved" })}
+        />
         <Row icon="👥" label="旅伴" value={`${companions} 人`} />
         <Row icon="🔔" label="通知" />
         <Row icon="🎟️" label="優惠券" />
