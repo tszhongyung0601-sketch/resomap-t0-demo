@@ -5,6 +5,7 @@ import { PoiImage } from "../components/Cover";
 import { Chip, Empty, Headphones, Note, Tag } from "../components/ui";
 import { playLabel, rating, storyRail } from "../lib/story";
 import { focusTrip } from "../lib/trip";
+import { useI18n } from "../i18n";
 import { useNav } from "../nav";
 import { POI_KIND_LABELS, type PoiKind, type Story } from "../types";
 
@@ -26,6 +27,7 @@ const ALL = "all";
 
 export function Library() {
   const nav = useNav();
+  const { t } = useI18n();
   const [city, setCity] = useState<string>(ALL);
   const [kind, setKind] = useState<string>(ALL);
 
@@ -71,7 +73,7 @@ export function Library() {
               teaches two rules for one control, which costs more than the
               slightly loud default it saves. */}
           <Chip active={city === ALL} onClick={() => setCity(ALL)}>
-            全部城市
+            {t("全部城市")}
           </Chip>
           {cities.map((d) => (
             <Chip key={d.id} active={city === d.id} onClick={() => setCity(d.id)}>
@@ -81,7 +83,7 @@ export function Library() {
         </div>
         <div className="flex gap-2 overflow-x-auto px-5 py-1.5 no-scrollbar">
           <Chip active={kind === ALL} onClick={() => setKind(ALL)}>
-            全部主題
+            {t("全部主題")}
           </Chip>
           {kinds.map((k) => (
             <Chip key={k} active={kind === k} onClick={() => setKind(k)}>
@@ -112,7 +114,7 @@ export function Library() {
               <span className="num text-[13px] font-semibold text-ink-2">
                 {shown.length} 篇故事
               </span>
-              <span className="text-[12.5px] text-ink-3">· 免費收聽</span>
+              <span className="text-[12.5px] text-ink-3">· {t("免費收聽")}</span>
               <span className="ml-auto shrink-0">
                 <Tag kind="demo" />
               </span>
@@ -153,6 +155,7 @@ export function Library() {
  */
 function GuideCard({ story: s }: { story: Story }) {
   const nav = useNav();
+  const { t, placeName } = useI18n();
   const p = poi(s.poiId);
   const cityName = BY_DEST[p.destId]?.name;
 
@@ -167,7 +170,9 @@ function GuideCard({ story: s }: { story: Story }) {
       >
         <PoiImage poi={p} height={128} radius={0} />
         <div className="px-4 pt-3">
-          <div className="truncate text-[15.5px] font-bold text-ink">{p.name}</div>
+          <div className="truncate text-[15.5px] font-bold text-ink">
+            {placeName(p.id, p.name)}
+          </div>
           <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink-3">
             {s.hook}
           </div>
@@ -195,7 +200,7 @@ function GuideCard({ story: s }: { story: Story }) {
           onClick={() => nav.play(s.poiId, "short")}
           className="num inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-bg px-4 text-[13.5px] font-bold text-ink transition active:bg-surface-2"
         >
-          試聽 30 秒
+          {t("試聽 30 秒")}
         </button>
       </div>
     </div>

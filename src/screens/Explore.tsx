@@ -257,6 +257,7 @@ function MapChip({
  */
 function GuideRail({ destId }: { destId?: string }) {
   const nav = useNav();
+  const { t } = useI18n();
   const rail = storyRail(destId);
   if (!rail.length) return null;
 
@@ -264,11 +265,11 @@ function GuideRail({ destId }: { destId?: string }) {
     <section className="mt-7">
       <div className="flex items-center gap-1.5 px-5 text-ink">
         <Headphones size={15} />
-        <h2 className="text-[17px] font-bold">有故事的地方</h2>
+        <h2 className="text-[17px] font-bold">{t("有故事的地方")}</h2>
         <Tag kind="demo" />
       </div>
       <p className="mb-3 mt-1 px-5 text-[12.5px] text-ink-3">
-        語音導覽免費，可以先試聽 30 秒。
+        {t("語音導覽免費，可以先試聽 30 秒。")}
       </p>
 
       <div className="snap-rail flex gap-3 overflow-x-auto px-5 pb-1 no-scrollbar">
@@ -282,7 +283,7 @@ function GuideRail({ destId }: { destId?: string }) {
           onClick={() => nav.tab("library")}
           className="flex w-[112px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-3 text-[13.5px] font-bold text-ink-2 active:bg-surface-2"
         >
-          <span>看全部導覽</span>
+          <span>{t("看全部導覽")}</span>
           <span className="text-[16px]" aria-hidden>
             ›
           </span>
@@ -306,6 +307,7 @@ function GuideRail({ destId }: { destId?: string }) {
  */
 function GuideCard({ story }: { story: Story }) {
   const nav = useNav();
+  const { t, placeName } = useI18n();
   const p = poi(story.poiId);
 
   return (
@@ -319,7 +321,9 @@ function GuideCard({ story }: { story: Story }) {
           </span>
         </div>
 
-        <div className="mt-2 truncate text-[14.5px] font-bold text-ink">{p.name}</div>
+        <div className="mt-2 truncate text-[14.5px] font-bold text-ink">
+          {placeName(p.id, p.name)}
+        </div>
         <div className="truncate text-[12.5px] text-ink-3">{story.hook}</div>
 
         {/* The rating is `likes / plays`, and both of its inputs are printed
@@ -337,7 +341,7 @@ function GuideCard({ story }: { story: Story }) {
         className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-surface text-[13px] font-bold text-ink active:bg-surface-2"
       >
         <PlayIcon />
-        試聽 30 秒
+        {t("試聽 30 秒")}
       </button>
     </div>
   );

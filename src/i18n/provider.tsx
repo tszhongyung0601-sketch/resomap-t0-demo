@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DEFAULT_LOCALE,
   I18nContext,
@@ -20,13 +20,17 @@ import { DICTS, PLACES } from "./catalogues";
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(readLocale);
 
+  /* On mount as well as on change. setLocale only fires when somebody picks a
+     language, so a reader who chose 日本語 yesterday came back to a document
+     still declaring zh-Hant — screen readers and the browser's own translation
+     prompt both read this attribute. */
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     writeLocale(l);
-    /* Screen readers and the browser's own UI read this; leaving it as zh-Hant
-       while the page renders Japanese is the kind of detail that only shows up
-       in an accessibility audit, which is exactly when it is expensive. */
-    document.documentElement.lang = l;
   }, []);
 
   const value = useMemo(() => {
