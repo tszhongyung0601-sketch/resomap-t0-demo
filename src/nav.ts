@@ -32,6 +32,7 @@ export type Route =
      and a link. */
   | { k: "deals"; tab?: DealsTab }
   | { k: "saved" }
+  | { k: "language" }
   | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a

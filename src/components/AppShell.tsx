@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Tab } from "../nav";
+import { useI18n } from "../i18n";
+import { TranslationNotice } from "../i18n/provider";
 import { OverlayHost } from "./overlay";
 
 /* iPhone 15/16 logical size, plus a bezel wide enough to read as a device.
@@ -68,6 +70,7 @@ export function AppShell({
   overlay?: ReactNode;
   children: ReactNode;
 }) {
+  const { t, translated } = useI18n();
   const [{ scale, phone }, setFrame] = useState(measure);
   /* Published to every screen through OverlayHost, so a `Sheet` opened deep
      inside one still lands here — above the tab bar, inside the clip. */
@@ -88,6 +91,10 @@ export function AppShell({
 
   const app = (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-bg">
+      {/* Above the screen, not inside it: every translated screen carries it, and
+          a notice that scrolls away is a notice the reader may never have seen. */}
+      <TranslationNotice translated={translated} />
+
       <div className="relative flex-1 overflow-hidden">
         <OverlayHost.Provider value={host}>{children}</OverlayHost.Provider>
       </div>
@@ -104,23 +111,25 @@ export function AppShell({
           aria-label="主要導覽"
           className="z-20 flex shrink-0 items-stretch border-t border-line bg-bg/95 pb-[max(20px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur"
         >
-          {TABS.map((t) => {
-            const on = t.id === tab;
+          {/* `item`, not `t` — the translate function is called t and the map
+             variable used to shadow it. */}
+          {TABS.map((item) => {
+            const on = item.id === tab;
             return (
               <button
-                key={t.id}
+                key={item.id}
                 type="button"
-                onClick={() => onTab(t.id)}
+                onClick={() => onTab(item.id)}
                 /* min-h states the touch target instead of leaving it as a
                    by-product of icon + label height. */
                 className="flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 py-1"
                 aria-current={on ? "page" : undefined}
               >
-                <span className={on ? "text-brand" : "text-ink-3"}>{t.icon}</span>
+                <span className={on ? "text-brand" : "text-ink-3"}>{item.icon}</span>
                 <span
                   className={`text-[12px] font-semibold ${on ? "text-brand" : "text-ink-3"}`}
                 >
-                  {t.label}
+                  {t(item.label)}
                 </span>
               </button>
             );

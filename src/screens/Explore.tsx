@@ -7,6 +7,7 @@ import { Button, Card, Headphones, Screen, Tag } from "../components/ui";
 import { distance } from "../lib/geo";
 import { hasStory, playLabel, rating, storyRail } from "../lib/story";
 import { focusTrip } from "../lib/trip";
+import { useI18n } from "../i18n";
 import { useNav, type Route } from "../nav";
 import type { Destination, Poi, Story, Trip } from "../types";
 
@@ -478,13 +479,14 @@ const SERVICES: { label: string; icon: string; tint: string; go: Route }[] = [
 
 function ServiceGrid() {
   const nav = useNav();
+  const { t } = useI18n();
   return (
     <section className="mt-8">
       {/* 旅程服務, not 你的旅行還缺什麼. The heading names the shelf; it does not
           count what the traveller has failed to book. */}
-      <h2 className="px-5 text-[17px] font-bold text-ink">旅程服務</h2>
+      <h2 className="px-5 text-[17px] font-bold text-ink">{t("旅程服務")}</h2>
       <p className="mt-1 px-5 text-[12.5px] leading-relaxed text-ink-3">
-        門票、住宿、交通，需要的時候從這裡出發。
+        {t("門票、住宿、交通，需要的時候從這裡出發。")}
       </p>
 
       {/* Five then four. grid-cols-5 with the last row left-aligned reads as an
@@ -509,7 +511,7 @@ function ServiceGrid() {
               {sv.icon}
             </span>
             <span className="text-center text-[11.5px] font-semibold leading-tight text-ink-2">
-              {sv.label}
+              {t(sv.label)}
             </span>
           </button>
         ))}

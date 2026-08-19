@@ -10,6 +10,7 @@ import { dur } from "../lib/adapt";
 import { openDirections } from "../lib/maps";
 import { track } from "../lib/track";
 import { togglePoi, useSaved } from "../lib/saved";
+import { useI18n } from "../i18n";
 import { useNav } from "../nav";
 import { POI_KIND_LABELS, type Story } from "../types";
 
@@ -111,6 +112,7 @@ function sceneEra(st: Story): string | null {
  */
 export function Poi({ id }: { id: string }) {
   const nav = useNav();
+  const { placeName, placeAbout } = useI18n();
   const p = poi(id);
 
   /**
@@ -223,12 +225,14 @@ export function Poi({ id }: { id: string }) {
       <PhotoCredit poi={p} />
 
       <div className="px-5 pt-5">
-        <h1 className="text-[22px] font-bold leading-snug text-ink">{p.name}</h1>
+        <h1 className="text-[22px] font-bold leading-snug text-ink">{placeName(p.id, p.name)}</h1>
         <div className="mt-1.5 text-[13.5px] text-ink-3">
           {p.area} · {POI_KIND_LABELS[p.kind]} · 建議停留 {dur(p.stayMin)}
         </div>
         {p.about && (
-          <p className="mt-4 text-[14.5px] leading-relaxed text-ink-2">{p.about}</p>
+          <p className="mt-4 text-[14.5px] leading-relaxed text-ink-2">
+            {placeAbout(p.id, p.about)}
+          </p>
         )}
 
         {/* Gated on the story, not on the id: a 試聽 button that opens an empty

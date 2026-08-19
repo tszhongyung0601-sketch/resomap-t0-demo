@@ -46,6 +46,7 @@ import { resetSaved } from "./lib/saved";
 import { Today } from "./screens/Today";
 import { Library } from "./screens/Library";
 import { Saved } from "./screens/Saved";
+import { Language } from "./screens/Language";
 import { DemoPanel } from "./screens/DemoPanel";
 import type { Deal, StoryLength, Trip } from "./types";
 
@@ -272,6 +273,7 @@ export default function App() {
   else if (route?.k === "deals")
     screen = <Deals destId={focus?.destId ?? null} tab={route.tab} />;
   else if (route?.k === "saved") screen = <Saved />;
+  else if (route?.k === "language") screen = <Language />;
   else if (route?.k === "business") screen = <BusinessDemo />;
   else if (route?.k === "expenses") screen = <Expenses tripId={route.tripId} />;
   else if (route?.k === "settle") screen = <Settle tripId={route.tripId} />;

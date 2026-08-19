@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useNav } from "../nav";
 import { Avatar, Row, Screen, TopBar } from "../components/ui";
 import { ME } from "../data/travellers";
+import { LOCALES, useI18n } from "../i18n";
 import { useSaved } from "../lib/saved";
 import { focusTrip } from "../lib/trip";
 
@@ -33,6 +34,7 @@ export function Profile() {
   /* The same trip the home card and the deals tab are showing. 記帳 / 分帳 is
      per-trip, so the row can only be live when there is one to open. */
   const trip = focusTrip(nav.trips);
+  const { locale, t } = useI18n();
   const saved = useSaved();
   const savedCount = saved.pois.length + saved.stories.length;
 
@@ -87,7 +89,14 @@ export function Profile() {
       </RowGroup>
 
       <RowGroup title="設定">
-        <Row icon="🌐" label="語言" value="繁體中文" />
+        {/* Was 即將推出 with a hardcoded 繁體中文 next to it — a value that
+            described a setting nobody could change. Both halves are now real. */}
+        <Row
+          icon="🌐"
+          label={t("語言")}
+          value={LOCALES.find((l) => l.id === locale)?.label}
+          onClick={() => nav.go({ k: "language" })}
+        />
         <Row icon="👤" label="帳號" />
         <Row icon="⚙️" label="一般設定" />
       </RowGroup>
