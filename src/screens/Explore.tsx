@@ -5,6 +5,7 @@ import { PoiImage } from "../components/Cover";
 import { MapCredit, MapView, PinLegend, type MapPin } from "../components/MapView";
 import { Button, Card, Headphones, Screen, Tag } from "../components/ui";
 import { distance } from "../lib/geo";
+import { toggleStory, useSaved } from "../lib/saved";
 import { hasStory, playLabel, rating, storyRail } from "../lib/story";
 import { focusTrip } from "../lib/trip";
 import { useI18n } from "../i18n";
@@ -309,18 +310,37 @@ function GuideCard({ story }: { story: Story }) {
   const nav = useNav();
   const { t, placeName } = useI18n();
   const p = poi(story.poiId);
+  const saved = useSaved().stories.includes(story.id);
 
   return (
     <div className="w-[184px] shrink-0">
-      <button onClick={() => nav.go({ k: "poi", id: story.poiId })} className="w-full text-left">
-        <div className="relative">
+      {/* The heart sits over the cover but outside the card button: a button
+          inside a button is invalid markup and behaves differently in every
+          browser. Absolute positioning is what lets them overlap while staying
+          siblings. */}
+      <div className="relative">
+        <button onClick={() => nav.go({ k: "poi", id: story.poiId })} className="w-full text-left">
           <PoiImage poi={p} height={112} radius={16} className="w-full" />
           <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-semibold text-white">
             <Headphones size={10} />
             <span className="num">{story.minutes} 分鐘</span>
           </span>
-        </div>
+        </button>
 
+        <button
+          onClick={() => toggleStory(story.id)}
+          aria-label={saved ? "取消收藏" : "收藏"}
+          aria-pressed={saved}
+          className="absolute right-1 top-1 grid size-11 place-items-center text-[19px] drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]"
+        >
+          {/* U+2665 without U+FE0F: with the selector the filled heart renders in
+              emoji presentation, at its own size and colour, so the two states
+              came out different sizes and the toggle read as a glitch. */}
+          <span className={saved ? "text-brand" : "text-white"}>{saved ? "♥" : "♡"}</span>
+        </button>
+      </div>
+
+      <button onClick={() => nav.go({ k: "poi", id: story.poiId })} className="w-full text-left">
         <div className="mt-2 truncate text-[14.5px] font-bold text-ink">
           {placeName(p.id, p.name)}
         </div>
@@ -359,6 +379,7 @@ function when(trip: Trip): string {
 
 function NextTrip({ trip }: { trip: Trip }) {
   const nav = useNav();
+  const { t } = useI18n();
   /* Only an ongoing trip has a "today" to start. `today` is a required field, so
      every planned trip carries a 1 and the button typechecked happily — the
      demo opens with no ongoing trip at all, which put 開始今天行程 on a trip
@@ -373,11 +394,11 @@ function NextTrip({ trip }: { trip: Trip }) {
     <div className="mt-7 px-5">
       <Card className="p-4">
         {/* A trip you are on day 2 of is not your "next" trip. The eyebrow read
-            你的下一段旅程 directly above 今天是第 2 天, which is the card
+            推薦行程 directly above 今天是第 2 天, which is the card
             contradicting itself — reachable the moment the demo starts the
             Tainan trip, since focusTrip prefers an ongoing one. */}
         <div className="text-[12.5px] font-semibold text-ink-3">
-          {started ? "行程進行中" : "你的下一段旅程"}
+          {started ? t("行程進行中") : t("推薦行程")}
         </div>
         <div className="mt-1 truncate text-[20px] font-bold leading-tight text-ink">
           {trip.title}
