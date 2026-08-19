@@ -33,6 +33,8 @@ export type Route =
   | { k: "deals"; tab?: DealsTab }
   | { k: "saved" }
   | { k: "language" }
+  | { k: "coupons" }
+  | { k: "coedit"; tripId: string }
   | { k: "business" }
   | { k: "demo" }
   /* Map and profile stopped being tabs: one is a way of finding a place, not a

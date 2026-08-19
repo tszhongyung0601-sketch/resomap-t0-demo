@@ -54,6 +54,9 @@ export const SOURCE = [
   "離線行程", "下載 PDF", "旅行文件", "行李清單", "帳號", "一般設定", "商家洽詢",
   "即將推出", "Demo 帳號",
 
+  /* added with the coupon page, the co-edit demo and the day editor */
+  "優惠碼", "立即領取", "要加到哪一天？", "編輯", "完成", "雲端同步", "共同編輯",
+
   /* shared marks and actions */
   "Demo 資料", "贊助", "查看", "前往", "加入", "取消", "儲存", "清除篩選",
   "都結清了", "結算",

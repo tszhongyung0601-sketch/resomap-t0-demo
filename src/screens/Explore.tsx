@@ -499,7 +499,9 @@ const SERVICES: { label: string; icon: string; tint: string; go: Route }[] = [
      Those four are all comingLater, so the tile leads to a real state rather than
      a real product — which is the honest version, not an empty door. */
   { label: "在地優惠", icon: "🏪", tint: "bg-surface-2", go: { k: "deals", tab: "more" } },
-  { label: "更多優惠", icon: "％", tint: "bg-brand-wash", go: { k: "deals" } },
+  /* 更多優惠 goes to the coupon page, which is what a traveller means by it;
+     在地優惠 above still opens the six-tab deals screen on its 更多 tab. */
+  { label: "更多優惠", icon: "％", tint: "bg-brand-wash", go: { k: "coupons" } },
 ];
 
 function ServiceGrid() {
